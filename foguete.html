@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Foguete 2D - Conservação do Momento Linear</title>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --panel-bg: rgba(15, 23, 42, 0.85);
+            --text-main: #f8fafc;
+            --accent: #38bdf8;
+            --btn-green: #22c55e;
+            --btn-red: #ef4444;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text-main);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Interface do Usuário (HUD) */
+        .hud-panel {
+            position: absolute;
+            background: var(--panel-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(4px);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            pointer-events: none; /* Deixa o clique passar para o canvas onde não há botões */
+        }
+
+        .top-left {
+            top: 20px;
+            left: 20px;
+        }
+
+        .top-right {
+            top: 20px;
+            right: 20px;
+            pointer-events: auto; /* Permite clicar nos botões */
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .bottom-right {
+            bottom: 20px;
+            right: 20px;
+        }
+
+        h2 {
+            margin: 0 0 15px 0;
+            font-size: 1.2rem;
+            color: var(--accent);
+        }
+
+        .stat-line {
+            font-size: 1rem;
+            margin-bottom: 8px;
+            font-family: monospace;
+        }
+
+        .info-text {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            margin-top: 15px;
+            max-width: 300px;
+            line-height: 1.4;
+        }
+
+        .controls-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .key {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin-right: 5px;
+        }
+
+        button {
+            background: var(--btn-green);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.8;
+        }
+
+        .btn-reset {
+            background: var(--btn-red);
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="simCanvas"></canvas>
+
+    <!-- Painel de Status -->
+    <div class="hud-panel top-left">
+        <h2>Painel de Telemetria</h2>
+        <div class="stat-line" id="stat-vel">Velocidade: (0.00, 0.00) m/s</div>
+        <div class="stat-line" id="stat-vel-mag">Vel. Total: 0.00 m/s</div>
+        <div class="stat-line" id="stat-mass">Massa: 100.00 kg</div>
+        <div class="stat-line" id="stat-angle">Ângulo: 0.0°</div>
+        
+        <div class="info-text">
+            <strong>Conservação do Momento:</strong><br>
+            m₁v₁ = m₂v₂ + m₃v₃<br><br>
+            <strong>Ação e Reação:</strong> O foguete ejeta massa em uma direção e move-se na direção oposta.
+        </div>
+    </div>
+
+    <!-- Painel de Botões -->
+    <div class="hud-panel top-right">
+        <button id="btnAddMass">Add Massa (+50kg)</button>
+        <button id="btnReset" class="btn-reset">Resetar Simulação</button>
+    </div>
+
+    <!-- Painel de Controles -->
+    <div class="hud-panel bottom-right">
+        <h2>Controles</h2>
+        <ul class="controls-list">
+            <li><span class="key">Espaço</span> Foguete p/ FRENTE</li>
+            <li><span class="key">Shift</span> Foguete p/ TRÁS</li>
+            <li><span class="key">↑</span> <span class="key">↓</span> Foguete Sobe / Desce</li>
+            <li><span class="key">←</span> <span class="key">→</span> Foguete Esq. / Dir.</li>
+            <li><span class="key">R</span> Rotacionar Horário</li>
+            <li><span class="key">L</span> Rotacionar Anti-horário</li>
+            <li><span class="key">Clique</span> Propulsão frontal (Mouse)</li>
+        </ul>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Referências UI
+        const statVel = document.getElementById('stat-vel');
+        const statVelMag = document.getElementById('stat-vel-mag');
+        const statMass = document.getElementById('stat-mass');
+        const statAngle = document.getElementById('stat-angle');
+
+        // Ajustar Canvas para o tamanho da janela
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Variáveis Físicas e Constantes ---
+        const MASSA_INICIAL_FOGUETE = 100.0;
+        const MASSA_BLOCO_EJETADO = 1.0;
+        const VELOCIDADE_RELATIVA_BLOCO = 30.0;
+
+        let foguete = {
+            massa: MASSA_INICIAL_FOGUETE,
+            pos: { x: canvas.width / 4, y: canvas.height / 2 },
+            vel: { x: 0, y: 0 },
+            largura: 80,
+            altura: 40,
+            angulo: 0 // Radianos
+        };
+
+        let blocos = [];
+        let estrelas = [];
+        const NUM_ESTRELAS = 200;
+
+        // Efeitos visuais
+        let propulsao = {
+            ativo: false,
+            timer: 0,
+            direcao: 0
+        };
+
+        // --- Inicialização ---
+        function initStars() {
+            estrelas = [];
+            for (let i = 0; i < NUM_ESTRELAS; i++) {
+                estrelas.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    tamanho: Math.random() * 2 + 1
+                });
+            }
+        }
+        initStars();
+
+        // --- Funções Auxiliares de Vetores ---
+        function rotateVector(v, angle) {
+            return {
+                x: v.x * Math.cos(angle) - v.y * Math.sin(angle),
+                y: v.x * Math.sin(angle) + v.y * Math.cos(angle)
+            };
+        }
+
+        function vectorMagnitude(v) {
+            return Math.sqrt(v.x * v.x + v.y * v.y);
+        }
+
+        // --- Lógica Principal ---
+        function ejetar_bloco(direcao) {
+            if (foguete.massa <= MASSA_BLOCO_EJETADO) {
+                console.log("Massa esgotada!");
+                return;
+            }
+
+            let direcao_foguete = { x: 0, y: 0 };
+            let direcao_ejecao = { x: 0, y: 0 };
+            let posicao_relativa = { x: 0, y: 0 };
+
+            // 0=Frente, 1=Trás, 2=Esquerda, 3=Direita, 4=Cima, 5=Baixo
+            if (direcao === 0) {
+                direcao_foguete = { x: 1, y: 0 };
+                direcao_ejecao = { x: -1, y: 0 };
+                posicao_relativa = { x: -foguete.largura/2 - 5, y: 0 };
+            } else if (direcao === 1) {
+                direcao_foguete = { x: -1, y: 0 };
+                direcao_ejecao = { x: 1, y: 0 };
+                posicao_relativa = { x: foguete.largura/2 + 5, y: 0 };
+            } else if (direcao === 2) {
+                direcao_foguete = { x: 0, y: -1 };
+                direcao_ejecao = { x: 0, y: 1 };
+                posicao_relativa = { x: 0, y: foguete.altura/2 + 5 };
+            } else if (direcao === 3) {
+                direcao_foguete = { x: 0, y: 1 };
+                direcao_ejecao = { x: 0, y: -1 };
+                posicao_relativa = { x: 0, y: -foguete.altura/2 - 5 };
+            } else if (direcao === 4) {
+                direcao_foguete = { x: 0, y: -1 };
+                direcao_ejecao = { x: 0, y: 1 };
+                posicao_relativa = { x: -10, y: foguete.altura/2 + 5 };
+            } else if (direcao === 5) {
+                direcao_foguete = { x: 0, y: 1 };
+                direcao_ejecao = { x: 0, y: -1 };
+                posicao_relativa = { x: -10, y: -foguete.altura/2 - 5 };
+            }
+
+            // Rotacionar para o sistema global (no Python o ângulo negativo era usado para rotação)
+            let direcao_ejecao_global = rotateVector(direcao_ejecao, foguete.angulo);
+            let posicao_global = rotateVector(posicao_relativa, foguete.angulo);
+
+            // Conservação do momento
+            let velocidade_relativa = {
+                x: direcao_ejecao_global.x * VELOCIDADE_RELATIVA_BLOCO,
+                y: direcao_ejecao_global.y * VELOCIDADE_RELATIVA_BLOCO
+            };
+
+            let fator_massa = MASSA_BLOCO_EJETADO / foguete.massa;
+            let delta_v = {
+                x: fator_massa * velocidade_relativa.x,
+                y: fator_massa * velocidade_relativa.y
+            };
+
+            foguete.vel.x -= delta_v.x;
+            foguete.vel.y -= delta_v.y;
+            foguete.massa -= MASSA_BLOCO_EJETADO;
+
+            let velocidade_absoluta_bloco = {
+                x: foguete.vel.x + velocidade_relativa.x,
+                y: foguete.vel.y + velocidade_relativa.y
+            };
+
+            blocos.push({
+                pos: { x: foguete.pos.x + posicao_global.x, y: foguete.pos.y + posicao_global.y },
+                vel: velocidade_absoluta_bloco,
+                tamanho: 4
+            });
+
+            // Efeito visual
+            propulsao.ativo = true;
+            propulsao.timer = 8;
+            propulsao.direcao = direcao;
+
+            atualizarHUD();
+        }
+
+        function adicionarMassa() {
+            foguete.massa = Math.min(MASSA_INICIAL_FOGUETE, foguete.massa + 50.0);
+            atualizarHUD();
+        }
+
+        function resetSimulacao() {
+            foguete.massa = MASSA_INICIAL_FOGUETE;
+            foguete.pos = { x: canvas.width / 4, y: canvas.height / 2 };
+            foguete.vel = { x: 0, y: 0 };
+            foguete.angulo = 0;
+            blocos = [];
+            atualizarHUD();
+        }
+
+        function atualizarHUD() {
+            statVel.innerText = `Velocidade: (${foguete.vel.x.toFixed(2)}, ${-foguete.vel.y.toFixed(2)}) m/s`; // -y para manter a lógica cartesiana padrão visualmente
+            statVelMag.innerText = `Vel. Total: ${vectorMagnitude(foguete.vel).toFixed(2)} m/s`;
+            statMass.innerText = `Massa: ${foguete.massa.toFixed(2)} kg`;
+            // Math.round para evitar -0 e ajustar graus
+            let deg = (foguete.angulo * 180 / Math.PI) % 360;
+            if(deg < 0) deg += 360;
+            statAngle.innerText = `Ângulo: ${deg.toFixed(1)}°`;
+        }
+
+        // --- Entradas do Usuário ---
+        window.addEventListener('keydown', (e) => {
+            switch(e.code) {
+                case 'Space': ejetar_bloco(0); break;
+                case 'ShiftLeft':
+                case 'ShiftRight': ejetar_bloco(1); break;
+                case 'ArrowLeft': ejetar_bloco(2); break;
+                case 'ArrowRight': ejetar_bloco(3); break;
+                case 'ArrowUp': ejetar_bloco(4); break;
+                case 'ArrowDown': ejetar_bloco(5); break;
+                case 'KeyR': 
+                    foguete.angulo += (15 * Math.PI / 180); 
+                    atualizarHUD();
+                    break;
+                case 'KeyL': 
+                    foguete.angulo -= (15 * Math.PI / 180); 
+                    atualizarHUD();
+                    break;
+            }
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            ejetar_bloco(0);
+        });
+
+        document.getElementById('btnAddMass').addEventListener('click', adicionarMassa);
+        document.getElementById('btnReset').addEventListener('click', resetSimulacao);
+
+
+        // --- Motor de Renderização ---
+        let lastTime = performance.now();
+
+        function desenharPropulsao() {
+            if (!propulsao.ativo) return;
+
+            let base_pos_relativa = { x: 0, y: 0 };
+            let direcao_relativa = { x: 0, y: 0 };
+
+            if (propulsao.direcao === 0) { // Foguete frente -> fogo atrás
+                base_pos_relativa = { x: -foguete.largura/2, y: 0 };
+                direcao_relativa = { x: -1, y: 0 };
+            } else if (propulsao.direcao === 1) { // Foguete trás -> fogo na frente
+                base_pos_relativa = { x: foguete.largura/2, y: 0 };
+                direcao_relativa = { x: 1, y: 0 };
+            } else if (propulsao.direcao === 2) { // Foguete esquerda -> fogo direita
+                base_pos_relativa = { x: 0, y: foguete.altura/2 };
+                direcao_relativa = { x: 0, y: 1 };
+            } else if (propulsao.direcao === 3) {
+                base_pos_relativa = { x: 0, y: -foguete.altura/2 };
+                direcao_relativa = { x: 0, y: -1 };
+            } else if (propulsao.direcao === 4) {
+                base_pos_relativa = { x: -10, y: foguete.altura/2 };
+                direcao_relativa = { x: 0, y: 1 };
+            } else if (propulsao.direcao === 5) {
+                base_pos_relativa = { x: -10, y: -foguete.altura/2 };
+                direcao_relativa = { x: 0, y: -1 };
+            }
+
+            let base_global = rotateVector(base_pos_relativa, foguete.angulo);
+            let dir_global = rotateVector(direcao_relativa, foguete.angulo);
+
+            let px = foguete.pos.x + base_global.x;
+            let py = foguete.pos.y + base_global.y;
+
+            let ponta = { x: px + dir_global.x * 40, y: py + dir_global.y * 40 };
+            
+            // Desenhar triângulo de fogo
+            ctx.save();
+            ctx.translate(px, py);
+            ctx.rotate(foguete.angulo + Math.atan2(direcao_relativa.y, direcao_relativa.x));
+            
+            ctx.beginPath();
+            ctx.moveTo(0, -10);
+            ctx.lineTo(40, 0); // Ponta
+            ctx.lineTo(0, 10);
+            ctx.fillStyle = "rgba(255, 100, 0, 0.9)";
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(0, -5);
+            ctx.lineTo(25, 0);
+            ctx.lineTo(0, 5);
+            ctx.fillStyle = "rgba(255, 255, 0, 0.9)";
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        function desenharSistemasCoordenadas() {
+            // Sistema fixo na tela
+            ctx.strokeStyle = "#ef4444";
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(50, canvas.height - 50); ctx.lineTo(100, canvas.height - 50); ctx.stroke();
+            ctx.fillStyle = "#ef4444"; ctx.fillText("X", 105, canvas.height - 45);
+
+            ctx.strokeStyle = "#22c55e";
+            ctx.beginPath(); ctx.moveTo(50, canvas.height - 50); ctx.lineTo(50, canvas.height - 100); ctx.stroke();
+            ctx.fillStyle = "#22c55e"; ctx.fillText("Y", 45, canvas.height - 105);
+
+            // Sistema móvel (foguete)
+            let origem = foguete.pos;
+            let x_foguete = rotateVector({x: 50, y: 0}, foguete.angulo);
+            let y_foguete = rotateVector({x: 0, y: -50}, foguete.angulo);
+
+            ctx.strokeStyle = "rgba(239, 68, 68, 0.6)";
+            ctx.beginPath(); ctx.moveTo(origem.x, origem.y); ctx.lineTo(origem.x + x_foguete.x, origem.y + x_foguete.y); ctx.stroke();
+            ctx.fillText("X'", origem.x + x_foguete.x + 5, origem.y + x_foguete.y + 5);
+
+            ctx.strokeStyle = "rgba(34, 197, 94, 0.6)";
+            ctx.beginPath(); ctx.moveTo(origem.x, origem.y); ctx.lineTo(origem.x + y_foguete.x, origem.y + y_foguete.y); ctx.stroke();
+            ctx.fillText("Y'", origem.x + y_foguete.x + 5, origem.y + y_foguete.y - 5);
+        }
+
+        function updateAndDraw(time) {
+            let dt = (time - lastTime) / 1000.0;
+            if (dt > 0.1) dt = 0.1; // Limite para tab inativa
+            lastTime = time;
+
+            // Fundo
+            ctx.fillStyle = "rgba(0, 0, 0, 1)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Atualiza Física
+            foguete.pos.x += foguete.vel.x * dt;
+            foguete.pos.y += foguete.vel.y * dt;
+
+            // Anima Estrelas (Paralaxe reverso à velocidade do foguete)
+            ctx.fillStyle = "#ffffff";
+            for (let e of estrelas) {
+                e.x -= foguete.vel.x * dt * 0.05;
+                e.y -= foguete.vel.y * dt * 0.05;
+
+                // Wrap-around das estrelas
+                if (e.x < 0) e.x = canvas.width;
+                else if (e.x > canvas.width) e.x = 0;
+                
+                if (e.y < 0) e.y = canvas.height;
+                else if (e.y > canvas.height) e.y = 0;
+
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, e.tamanho, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Blocos Ejetados
+            ctx.fillStyle = "#94a3b8"; // CINZA
+            for (let i = blocos.length - 1; i >= 0; i--) {
+                let b = blocos[i];
+                b.pos.x += b.vel.x * dt;
+                b.pos.y += b.vel.y * dt;
+
+                ctx.beginPath();
+                ctx.arc(b.pos.x, b.pos.y, b.tamanho, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Remove blocos distantes
+                if (b.pos.x < -100 || b.pos.x > canvas.width + 100 || b.pos.y < -100 || b.pos.y > canvas.height + 100) {
+                    blocos.splice(i, 1);
+                }
+            }
+
+            // Efeito Propulsão
+            desenharPropulsao();
+            if (propulsao.ativo) {
+                propulsao.timer--;
+                if (propulsao.timer <= 0) propulsao.ativo = false;
+            }
+
+            // Desenhar Foguete
+            ctx.save();
+            ctx.translate(foguete.pos.x, foguete.pos.y);
+            ctx.rotate(foguete.angulo);
+
+            // Corpo
+            ctx.fillStyle = "#0284c7"; // Azul Foguete
+            ctx.fillRect(-foguete.largura/2, -foguete.altura/2, foguete.largura, foguete.altura);
+            
+            // Frente (bico)
+            ctx.beginPath();
+            ctx.arc(foguete.largura/2, 0, foguete.altura/2, -Math.PI/2, Math.PI/2);
+            ctx.fill();
+
+            // Asas (visuais)
+            ctx.beginPath();
+            ctx.moveTo(-foguete.largura/2, -foguete.altura/2);
+            ctx.lineTo(-foguete.largura/2 - 10, -foguete.altura/2 - 15);
+            ctx.lineTo(-foguete.largura/2 + 20, -foguete.altura/2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-foguete.largura/2, foguete.altura/2);
+            ctx.lineTo(-foguete.largura/2 - 10, foguete.altura/2 + 15);
+            ctx.lineTo(-foguete.largura/2 + 20, foguete.altura/2);
+            ctx.fill();
+
+            ctx.restore();
+
+            // Desenhar Coordenadas (referencial inercial e relativo)
+            desenharSistemasCoordenadas();
+
+            requestAnimationFrame(updateAndDraw);
+        }
+
+        // Inicia loop
+        requestAnimationFrame(updateAndDraw);
+
+    </script>
+</body>
+</html>
