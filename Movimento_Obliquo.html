@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratório de Física: Salto Hot Wheels (Cenário)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e2f;
+            color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #ff6b00;
+            margin-bottom: 5px;
+        }
+        p { color: #a0a0b0; }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            width: 100%;
+        }
+        
+        /* Painel de Controles */
+        .controls {
+            background: #2a2a40;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            border-bottom: 1px solid #3f3f5a;
+            padding-bottom: 10px;
+        }
+        .control-group:last-child { border: none; padding-bottom: 0; }
+        .control-group.highlight {
+            background-color: #352822;
+            padding: 10px;
+            border-radius: 8px;
+            border-bottom: none;
+        }
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 0.85em;
+            color: #9cdacd;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #ff6b00;
+        }
+        input[type="color"] {
+            width: 100%;
+            height: 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: none;
+        }
+        .value-display {
+            font-size: 0.8em;
+            color: #b0b0c0;
+            text-align: right;
+            margin-top: 2px;
+        }
+        
+        /* Botões */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        button {
+            flex: 1;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 1em;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button:active { transform: scale(0.98); }
+        #btn-launch { background-color: #ff6b00; }
+        #btn-launch:hover { background-color: #e65c00; }
+        #btn-clear { background-color: #4a4a6a; }
+        #btn-clear:hover { background-color: #3f3f5a; }
+        button:disabled { background-color: #555 !important; color: #888; cursor: not-allowed; }
+
+        /* Canvas e Painel de Resultados */
+        .canvas-container {
+            position: relative;
+            flex-grow: 1;
+        }
+        canvas {
+            /* Fundo de céu diurno no canvas */
+            background: linear-gradient(to bottom, #4facfe 0%, #e0f6ff 100%);
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+            width: 100%;
+            display: block;
+        }
+        
+        .results-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid #4a4a6a;
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 180px;
+            backdrop-filter: blur(4px);
+        }
+        .results-panel h3 {
+            margin: 0 0 10px 0;
+            color: #ff6b00;
+            font-size: 1em;
+            text-align: center;
+        }
+        .stat-line {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        .stat-line span.val { color: #4ade80; font-weight: bold; }
+        
+        #alert-msg {
+            color: #ff4444;
+            font-weight: bold;
+            font-size: 0.85em;
+            text-align: center;
+            height: 15px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Laboratório: Salto Hot Wheels</h1>
+    <p>Configure seu carro esportivo, ajuste as físicas e veja se consegue bater o recorde do salto!</p>
+
+    <div class="container">
+        <div class="controls">
+            <div class="control-group">
+                <label for="carColor">Cor do Carro Esportivo</label>
+                <input type="color" id="carColor" value="#ff0044">
+            </div>
+
+            <div class="control-group">
+                <label for="velocity">Velocidade do Propulsor (m/s)</label>
+                <input type="range" id="velocity" min="5" max="60" step="1" value="35">
+                <div class="value-display" id="velocity-val">35 m/s</div>
+            </div>
+
+            <div class="control-group">
+                <label for="gravity">Gravidade (m/s²)</label>
+                <input type="range" id="gravity" min="1.6" max="25" step="0.1" value="9.8">
+                <div class="value-display" id="gravity-val" style="color:#4ade80;">9.8 m/s² (Terra)</div>
+            </div>
+
+            <div class="control-group highlight">
+                <label for="rampAngle">Ângulo da Rampa (°)</label>
+                <input type="range" id="rampAngle" min="10" max="80" step="1" value="40">
+                <div class="value-display" id="rampAngle-val">40°</div>
+                
+                <label for="rampLength" style="margin-top:8px;">Comprimento da Rampa (m)</label>
+                <input type="range" id="rampLength" min="2" max="20" step="0.5" value="6">
+                <div class="value-display" id="rampLength-val">6.0 m</div>
+            </div>
+
+            <div class="control-group">
+                <label for="mass">Massa do Carrinho (kg)</label>
+                <input type="range" id="mass" min="0.1" max="5" step="0.1" value="1.0">
+                <div class="value-display" id="mass-val">1.0 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label for="drag">Resistência do Ar</label>
+                <input type="range" id="drag" min="0" max="0.1" step="0.001" value="0.02">
+                <div class="value-display" id="drag-val">0.02</div>
+            </div>
+
+            <div class="control-group">
+                <label for="friction">Atrito na Rampa (µ)</label>
+                <input type="range" id="friction" min="0" max="0.3" step="0.01" value="0.02">
+                <div class="value-display" id="friction-val">0.02</div>
+            </div>
+
+            <div id="alert-msg"></div>
+
+            <div class="btn-group">
+                <button id="btn-launch" onclick="startSimulation()">Lançar!</button>
+                <button id="btn-clear" onclick="clearCanvas()">Limpar</button>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="simCanvas" width="950" height="600"></canvas>
+            
+            <div class="results-panel">
+                <h3>Resultados do Salto</h3>
+                <div class="stat-line">Alcance: <span class="val" id="res-dist">0.00 m</span></div>
+                <div class="stat-line">Altura Máx: <span class="val" id="res-height">0.00 m</span></div>
+                <div class="stat-line">Tempo de Vôo: <span class="val" id="res-time">0.00 s</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const btnLaunch = document.getElementById('btn-launch');
+        const alertMsg = document.getElementById('alert-msg');
+        
+        // Elementos da UI
+        const velInput = document.getElementById('velocity');
+        const gravityInput = document.getElementById('gravity');
+        const colorInput = document.getElementById('carColor');
+        const rampAngleInput = document.getElementById('rampAngle');
+        const rampLengthInput = document.getElementById('rampLength');
+        const massInput = document.getElementById('mass');
+        const dragInput = document.getElementById('drag');
+        const frictionInput = document.getElementById('friction');
+
+        // Configurações e Escala
+        const scale = 12; // 1 metro = 12 pixels
+        const groundY = 480; 
+        const rampStartX = 80; 
+
+        let animationId;
+        let isSimulating = false;
+        let trails = []; 
+
+        // --- Geração de Cenário (Rodado 1x para não piscar) ---
+        const scenery = {
+            clouds: [],
+            trees: []
+        };
+
+        // Gerar Nuvens Aleatórias
+        for(let i = 0; i < 7; i++) {
+            scenery.clouds.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * 250 + 20,
+                s: 0.6 + Math.random() * 0.8 // escala da nuvem
+            });
+        }
+
+        // Gerar Árvores no fundo
+        for(let i = 0; i < 15; i++) {
+            scenery.trees.push({
+                x: Math.random() * canvas.width,
+                s: 0.6 + Math.random() * 0.7 // escala da árvore
+            });
+        }
+        // Ordenar árvores por tamanho para efeito de profundidade
+        scenery.trees.sort((a, b) => a.s - b.s);
+
+        // --- Funções de Física e UI ---
+
+        function getPhysicsParams() {
+            return {
+                initialVelocity: parseFloat(velInput.value),
+                gravity: parseFloat(gravityInput.value),
+                rampAngleRad: parseFloat(rampAngleInput.value) * (Math.PI / 180),
+                rampLength: parseFloat(rampLengthInput.value),
+                mass: parseFloat(massInput.value),
+                dragCoef: parseFloat(dragInput.value),
+                frictionCoef: parseFloat(frictionInput.value),
+                carColor: colorInput.value
+            };
+        }
+
+        function updateDisplays() {
+            document.getElementById('velocity-val').innerText = velInput.value + ' m/s';
+            
+            const gVal = parseFloat(gravityInput.value);
+            const gText = document.getElementById('gravity-val');
+            let nomeAstro = "m/s²";
+            if(gVal === 1.6) nomeAstro = "m/s² (Lua)";
+            else if(gVal === 3.7) nomeAstro = "m/s² (Marte)";
+            else if(gVal === 9.8) nomeAstro = "m/s² (Terra)";
+            else if(gVal > 24) nomeAstro = "m/s² (Júpiter)";
+            
+            gText.innerText = gVal.toFixed(1) + " " + nomeAstro;
+            gText.style.color = (gVal === 9.8) ? '#4ade80' : (gVal < 9.8 ? '#60a5fa' : '#f87171');
+
+            document.getElementById('rampAngle-val').innerText = rampAngleInput.value + '°';
+            document.getElementById('rampLength-val').innerText = rampLengthInput.value + ' m';
+            document.getElementById('mass-val').innerText = massInput.value + ' kg';
+            document.getElementById('drag-val').innerText = dragInput.value;
+            document.getElementById('friction-val').innerText = frictionInput.value;
+            
+            if (!isSimulating) drawScene();
+        }
+
+        [velInput, gravityInput, colorInput, rampAngleInput, rampLengthInput, massInput, dragInput, frictionInput].forEach(input => {
+            input.addEventListener('input', updateDisplays);
+        });
+
+        // --- Funções de Desenho ---
+
+        function drawBackground() {
+            // Nuvens
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            scenery.clouds.forEach(c => {
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, 20 * c.s, 0, Math.PI*2);
+                ctx.arc(c.x + 20*c.s, c.y - 10*c.s, 25 * c.s, 0, Math.PI*2);
+                ctx.arc(c.x + 40*c.s, c.y, 20 * c.s, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            // Linhas de montanhas no horizonte
+            ctx.fillStyle = '#6ab04c'; // Verde claro para colinas
+            ctx.beginPath();
+            ctx.moveTo(0, groundY);
+            ctx.quadraticCurveTo(200, groundY - 80, 400, groundY);
+            ctx.quadraticCurveTo(700, groundY - 120, canvas.width, groundY);
+            ctx.lineTo(canvas.width, groundY);
+            ctx.lineTo(0, groundY);
+            ctx.fill();
+
+            // Árvores
+            scenery.trees.forEach(t => {
+                const trunkW = 6 * t.s;
+                const trunkH = 20 * t.s;
+                // Tronco
+                ctx.fillStyle = '#5c4033';
+                ctx.fillRect(t.x - trunkW/2, groundY - trunkH, trunkW, trunkH);
+                
+                // Folhas (3 triângulos sobrepostos)
+                ctx.fillStyle = '#228b22';
+                for(let j=0; j<3; j++) {
+                    ctx.beginPath();
+                    const base = groundY - trunkH + (j * 10 * t.s) - (j * 15 * t.s);
+                    ctx.moveTo(t.x - 15 * t.s + (j*3*t.s), base);
+                    ctx.lineTo(t.x + 15 * t.s - (j*3*t.s), base);
+                    ctx.lineTo(t.x, base - 25 * t.s);
+                    ctx.fill();
+                }
+            });
+
+            // Chão (Grama + Terra)
+            ctx.fillStyle = '#78e08f'; // Grama viva
+            ctx.fillRect(0, groundY, canvas.width, 8);
+            ctx.fillStyle = '#8b4513'; // Terra
+            ctx.fillRect(0, groundY + 8, canvas.width, canvas.height - groundY - 8);
+        }
+
+        function drawGrid() {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)'; // Grade escura e sutil
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.font = '11px Arial';
+            ctx.lineWidth = 1;
+
+            // Eixo X (Distância)
+            for(let m = 0; m <= 80; m += 5) {
+                let px = rampStartX + (m * scale);
+                if (px < canvas.width) {
+                    ctx.beginPath(); ctx.moveTo(px, groundY); ctx.lineTo(px, 0); ctx.stroke();
+                    if(m > 0) ctx.fillText(m + 'm', px + 3, groundY - 5);
+                }
+            }
+
+            // Eixo Y (Altura)
+            for(let m = 0; m <= 40; m += 5) {
+                let py = groundY - (m * scale);
+                if (py > 0) {
+                    ctx.beginPath(); ctx.moveTo(rampStartX, py); ctx.lineTo(canvas.width, py); ctx.stroke();
+                    if(m > 0) ctx.fillText(m + 'm', rampStartX + 5, py - 5);
+                }
+            }
+            
+            // Eixo Zero (Marcador Forte)
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(rampStartX, 0); ctx.lineTo(rampStartX, groundY); ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawCar(x, y, angleRad, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(-angleRad); 
+
+            // Sombra do carro
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(0, 6, 18, 4, 0, 0, Math.PI*2);
+            ctx.fill();
+
+            // --- Chassi Esportivo ---
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(-16, -2); // Traseira cima
+            ctx.lineTo(-18, 2);  // Para-choque traseiro
+            ctx.lineTo(-18, 5);  // Base traseira
+            ctx.lineTo(16, 5);   // Base dianteira
+            ctx.lineTo(18, 2);   // Para-choque frontal
+            ctx.quadraticCurveTo(15, -3, 6, -4); // Capô arredondado
+            ctx.lineTo(2, -10);  // Para-brisas
+            ctx.lineTo(-10, -10);// Teto
+            ctx.lineTo(-15, -4); // Vidro traseiro
+            ctx.closePath();
+            ctx.fill();
+
+            // Aerofólio (Spoiler traseiro)
+            ctx.fillStyle = '#111';
+            ctx.beginPath();
+            ctx.moveTo(-14, -4);
+            ctx.lineTo(-18, -8);
+            ctx.lineTo(-14, -9);
+            ctx.lineTo(-12, -4);
+            ctx.fill();
+
+            // Vidros (Para-brisas e lateral)
+            ctx.fillStyle = 'rgba(200, 230, 255, 0.8)'; 
+            ctx.beginPath();
+            ctx.moveTo(1, -9);
+            ctx.lineTo(6, -4);
+            ctx.lineTo(-2, -4);
+            ctx.lineTo(-2, -9);
+            ctx.closePath();
+            ctx.fill(); // Janela dianteira
+            
+            ctx.beginPath();
+            ctx.moveTo(-4, -9);
+            ctx.lineTo(-4, -4);
+            ctx.lineTo(-12, -4);
+            ctx.lineTo(-9, -9);
+            ctx.closePath();
+            ctx.fill(); // Janela traseira
+
+            // Rodas (Aro esportivo)
+            drawWheel(-10, 5);
+            drawWheel(10, 5);
+
+            ctx.restore();
+        }
+
+        function drawWheel(wx, wy) {
+            // Pneu
+            ctx.fillStyle = '#111';
+            ctx.beginPath(); ctx.arc(wx, wy, 4.5, 0, Math.PI * 2); ctx.fill();
+            // Calota de Alumínio
+            ctx.fillStyle = '#ddd';
+            ctx.beginPath(); ctx.arc(wx, wy, 2.5, 0, Math.PI * 2); ctx.fill();
+            // Miolo preto
+            ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.arc(wx, wy, 1, 0, Math.PI * 2); ctx.fill();
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 1. Natureza ao fundo
+            drawBackground();
+            
+            // 2. Régua sobre o cenário
+            drawGrid();
+
+            const p = getPhysicsParams();
+            const rampEndX = rampStartX + (p.rampLength * Math.cos(p.rampAngleRad) * scale);
+            const rampEndY = groundY - (p.rampLength * Math.sin(p.rampAngleRad) * scale);
+
+            // 3. Rampa de lançamento
+            ctx.fillStyle = '#ff6b00'; 
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            ctx.moveTo(rampStartX - 50, groundY); 
+            ctx.lineTo(rampStartX, groundY);
+            ctx.lineTo(rampEndX, rampEndY);
+            ctx.stroke(); // Apenas a linha de metal superior
+
+            // Estrutura/Pilar da rampa
+            ctx.fillStyle = 'rgba(255, 107, 0, 0.8)'; 
+            ctx.beginPath();
+            ctx.moveTo(rampStartX, groundY);
+            ctx.lineTo(rampEndX, rampEndY);
+            ctx.lineTo(rampEndX, groundY);
+            ctx.closePath();
+            ctx.fill();
+
+            // 4. Trajetórias antigas
+            trails.forEach(trail => {
+                ctx.beginPath();
+                ctx.strokeStyle = trail.color;
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                for (let i = 0; i < trail.points.length; i++) {
+                    const pt = trail.points[i];
+                    if (i === 0) ctx.moveTo(pt.x, pt.y);
+                    else ctx.lineTo(pt.x, pt.y);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            });
+
+            // 5. O Carro
+            if (!isSimulating) {
+                // Posiciona o carro no ponto de partida (Y ajustado em 9.5 para a roda tocar o chão)
+                drawCar(rampStartX - 25, groundY - 9.5, 0, p.carColor); 
+            }
+        }
+
+        function clearCanvas() {
+            trails = [];
+            isSimulating = false;
+            cancelAnimationFrame(animationId);
+            btnLaunch.disabled = false;
+            alertMsg.innerText = '';
+            
+            document.getElementById('res-dist').innerText = "0.00 m";
+            document.getElementById('res-height').innerText = "0.00 m";
+            document.getElementById('res-time').innerText = "0.00 s";
+            
+            drawScene();
+        }
+
+        // --- Loop da Física ---
+
+        function startSimulation() {
+            if (isSimulating) return;
+            isSimulating = true;
+            btnLaunch.disabled = true;
+            alertMsg.innerText = '';
+
+            const p = getPhysicsParams();
+            const dt = 0.015; 
+            
+            let state = 'RAMP'; 
+            let distOnRamp = 0;
+            let currentV = p.initialVelocity; 
+            
+            let currentX = rampStartX - 25; 
+            let currentY = groundY;
+
+            let posAir = { x: 0, y: 0 };
+            let velAir = { x: 0, y: 0 };
+            
+            let jumpXVisual = 0;
+            let jumpYVisual = 0;
+
+            let stats = { maxHeight: 0, distance: 0, flightTime: 0 };
+            let currentTrail = { color: p.carColor, points: [] };
+
+            function update() {
+                if (state === 'RAMP') {
+                    if (currentX < rampStartX) {
+                        currentX += currentV * dt * scale;
+                        currentTrail.points.push({ x: currentX, y: groundY });
+                    } else {
+                        // Subindo a rampa
+                        let accel = -(p.gravity * Math.sin(p.rampAngleRad)) - (p.frictionCoef * p.gravity * Math.cos(p.rampAngleRad));
+                        
+                        currentV += accel * dt;
+                        distOnRamp += currentV * dt;
+
+                        if (currentV <= 0) {
+                            alertMsg.innerText = "Faltou velocidade para saltar!";
+                            endSimulation();
+                            return;
+                        }
+
+                        currentX = rampStartX + (distOnRamp * Math.cos(p.rampAngleRad) * scale);
+                        currentY = groundY - (distOnRamp * Math.sin(p.rampAngleRad) * scale);
+                        currentTrail.points.push({ x: currentX, y: currentY });
+
+                        if (distOnRamp >= p.rampLength) {
+                            state = 'AIR';
+                            jumpXVisual = currentX;
+                            jumpYVisual = currentY;
+                            
+                            velAir.x = currentV * Math.cos(p.rampAngleRad);
+                            velAir.y = currentV * Math.sin(p.rampAngleRad); 
+                            
+                            stats.maxHeight = p.rampLength * Math.sin(p.rampAngleRad);
+                        }
+                    }
+
+                    drawScene();
+                    // Y - 9.5 compensa o raio da roda no novo design
+                    drawCar(currentX, currentY - 9.5, currentX < rampStartX ? 0 : p.rampAngleRad, p.carColor);
+
+                } else if (state === 'AIR') {
+                    stats.flightTime += dt;
+
+                    const speed = Math.sqrt(velAir.x * velAir.x + velAir.y * velAir.y);
+                    const dragForceX = p.dragCoef * speed * velAir.x;
+                    const dragForceY = p.dragCoef * speed * velAir.y;
+
+                    const ax = -(dragForceX / p.mass);
+                    const ay = -p.gravity - (dragForceY / p.mass); 
+
+                    velAir.x += ax * dt;
+                    velAir.y += ay * dt;
+
+                    posAir.x += velAir.x * dt;
+                    posAir.y += velAir.y * dt;
+
+                    currentX = jumpXVisual + (posAir.x * scale);
+                    currentY = jumpYVisual - (posAir.y * scale); 
+
+                    currentTrail.points.push({ x: currentX, y: currentY });
+
+                    let currentHeightMeters = (groundY - currentY) / scale;
+                    if (currentHeightMeters > stats.maxHeight) {
+                        stats.maxHeight = currentHeightMeters;
+                    }
+
+                    drawScene();
+                    
+                    ctx.beginPath(); ctx.strokeStyle = p.carColor; ctx.lineWidth = 3;
+                    for(let i=0; i<currentTrail.points.length; i++) {
+                        if (i===0) ctx.moveTo(currentTrail.points[i].x, currentTrail.points[i].y);
+                        else ctx.lineTo(currentTrail.points[i].x, currentTrail.points[i].y);
+                    }
+                    ctx.stroke();
+
+                    const carAngleAir = Math.atan2(velAir.y, velAir.x);
+                    drawCar(currentX, currentY - 9.5, carAngleAir, p.carColor);
+
+                    if (currentY >= groundY && velAir.y < 0) {
+                        stats.distance = (currentX - rampStartX) / scale;
+                        endSimulation();
+                        return;
+                    }
+                    if (currentX > canvas.width + 100) {
+                        stats.distance = (currentX - rampStartX) / scale;
+                        endSimulation();
+                        return;
+                    }
+                }
+
+                if (state === 'AIR') {
+                    document.getElementById('res-dist').innerText = ((currentX - rampStartX) / scale).toFixed(2) + " m";
+                    document.getElementById('res-height').innerText = stats.maxHeight.toFixed(2) + " m";
+                    document.getElementById('res-time').innerText = stats.flightTime.toFixed(2) + " s";
+                }
+
+                animationId = requestAnimationFrame(update);
+            }
+
+            function endSimulation() {
+                isSimulating = false;
+                trails.push(currentTrail);
+                btnLaunch.disabled = false;
+                
+                document.getElementById('res-dist').innerText = stats.distance.toFixed(2) + " m";
+                document.getElementById('res-height').innerText = stats.maxHeight.toFixed(2) + " m";
+                document.getElementById('res-time').innerText = stats.flightTime.toFixed(2) + " s";
+                
+                drawScene();
+            }
+
+            update();
+        }
+
+        // Setup Inicial
+        updateDisplays();
+
+    </script>
+</body>
+</html>

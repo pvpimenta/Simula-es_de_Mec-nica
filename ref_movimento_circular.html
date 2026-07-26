@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Física: Movimento Circular - Referenciais Corretos</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a24;
+            color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #4facfe;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+        p { color: #a0a0b0; margin-top: 0; margin-bottom: 20px; text-align: center; max-width: 800px; }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1300px;
+            width: 100%;
+        }
+        
+        .controls {
+            background: #252535;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            flex-shrink: 0;
+        }
+        
+        .frame-selector {
+            background: #1e1e2c;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #3f3f5a;
+        }
+        .frame-selector h3 {
+            margin: 0 0 10px 0;
+            font-size: 1em;
+            color: #ffca28;
+        }
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: 0.2s;
+            padding: 5px;
+            border-radius: 5px;
+        }
+        .radio-group label:hover { background: rgba(79, 172, 254, 0.1); }
+        .radio-group input {
+            margin-right: 10px;
+            accent-color: #4facfe;
+            width: 18px;
+            height: 18px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .control-group label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 0.85em;
+            color: #9cdacd;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #4facfe;
+        }
+        .value-display {
+            font-size: 0.85em;
+            color: #b0b0c0;
+            text-align: right;
+            margin-top: 2px;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        button {
+            flex: 1;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 1em;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button:active { transform: scale(0.98); }
+        #btn-start { background-color: #4ade80; color: #064e3b; }
+
+        .canvas-container {
+            position: relative;
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            overflow: hidden;
+            border-radius: 12px;
+        }
+        canvas {
+            background: #2a2a36;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 950px;
+            display: block;
+        }
+        
+        .results-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(20, 20, 30, 0.85);
+            border: 1px solid #4a4a6a;
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 220px;
+            backdrop-filter: blur(5px);
+            pointer-events: none;
+        }
+        .results-panel h3 {
+            margin: 0 0 10px 0;
+            color: #4facfe;
+            font-size: 1em;
+            text-align: center;
+            border-bottom: 1px solid #3f3f5a;
+            padding-bottom: 5px;
+        }
+        .stat-line {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }
+        .stat-line span.val { color: #fff; font-weight: bold; }
+        .stat-line span.highlight { color: #ffca28; }
+
+    </style>
+</head>
+<body>
+
+    <h1>Física: Referencial no Eixo</h1>
+    <p>O centro da tela é **sempre o eixo do carrossel**. O observador selecionado ficará com um **sinal piscante**. Mude o referencial para ver a relatividade correta da distância.</p>
+
+    <div class="container">
+        <!-- Controles -->
+        <div class="controls">
+            
+            <div class="frame-selector">
+                <h3>🧭 Escolha o Referencial:</h3>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="frame" value="ground" checked onchange="updateFrameFromRadio()"> 
+                        🌍 Referencial Fixo (Chão)
+                    </label>
+                    <label>
+                        <input type="radio" name="frame" value="disk" onchange="updateFrameFromRadio()"> 
+                        🎠 Referencial Rotativo (Carrossel)
+                    </label>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label for="zoom">🔍 Zoom da Câmera</label>
+                <input type="range" id="zoom" min="0.3" max="2.0" step="0.1" value="0.9">
+                <div class="value-display" id="zoom-val">0.9x</div>
+            </div>
+
+            <div class="control-group">
+                <label for="omega">Velocidade Angular (rad/s)</label>
+                <input type="range" id="omega" min="-2" max="2" step="0.1" value="0.8">
+                <div class="value-display" id="omega-val">0.8 rad/s</div>
+            </div>
+
+            <div class="control-group">
+                <label for="radius">Posição do Observador (R)</label>
+                <input type="range" id="radius" min="0" max="180" step="10" value="130">
+                <div class="value-display" id="radius-val">130 m</div>
+            </div>
+
+            <div class="btn-group">
+                <button id="btn-start" onclick="toggleSim()">Pausar</button>
+            </div>
+            
+        </div>
+
+        <!-- Área de Simulação -->
+        <div class="canvas-container">
+            <canvas id="simCanvas" width="950" height="600"></canvas>
+
+            <div class="results-panel">
+                <h3>Dados em Tempo Real</h3>
+                <div class="stat-line">Sistema: <span class="val highlight" id="res-frame">Fixo (Terra)</span></div>
+                <div class="stat-line">Distância Relativa: <span class="val" id="res-dist" style="color: #4ade80;">0 m</span></div>
+                <hr style="border-color: #3f3f5a; margin: 10px 0;">
+                <div class="stat-line" style="font-size: 0.8em; color: #a0a0b0;">A distância varia de <span id="dist-min"></span> até <span id="dist-max"></span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const omegaInput = document.getElementById('omega');
+        const radiusInput = document.getElementById('radius');
+        const zoomInput = document.getElementById('zoom');
+        const btnStart = document.getElementById('btn-start');
+        
+        let isRunning = true;
+        let simTime = 0;
+        let currentFrame = 'ground';
+        
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const diskRadius = 200; 
+        const statObsD = 320; 
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            let currentZoom = parseFloat(zoomInput.value);
+            if (e.deltaY < 0) currentZoom += 0.1;
+            else currentZoom -= 0.1;
+            currentZoom = Math.max(0.3, Math.min(2.0, currentZoom));
+            zoomInput.value = currentZoom.toFixed(1);
+            document.getElementById('zoom-val').innerText = currentZoom.toFixed(1) + 'x';
+        });
+
+        function updateFrameFromRadio() {
+            const radios = document.getElementsByName('frame');
+            for(let r of radios) { if(r.checked) currentFrame = r.value; }
+        }
+
+        [omegaInput, radiusInput, zoomInput].forEach(input => {
+            input.addEventListener('input', (e) => {
+                let unit = e.target.id === 'omega' ? ' rad/s' : (e.target.id === 'zoom' ? 'x' : ' m');
+                document.getElementById(e.target.id + '-val').innerText = e.target.value + unit;
+            });
+        });
+
+        function getParams() {
+            return {
+                omega: parseFloat(omegaInput.value),
+                R: parseFloat(radiusInput.value),
+                zoom: parseFloat(zoomInput.value)
+            };
+        }
+
+        // --- DESENHOS BASE ---
+        function drawPersonTopDown(x, y, colorBody, colorHair, label, rotationAngle, camAngle, isSelected) {
+            ctx.save();
+            ctx.translate(x, y); 
+            
+            // --- SINAL PISCANTE SE FOR O OBSERVADOR ATUAL ---
+            if (isSelected) {
+                // Usa o tempo real do navegador (performance.now) para piscar mesmo pausado
+                let blinkTime = performance.now() / 200; 
+                let alphaFill = 0.2 + 0.3 * Math.abs(Math.sin(blinkTime));
+                let alphaStroke = 0.5 + 0.5 * Math.abs(Math.sin(blinkTime));
+                
+                ctx.beginPath(); 
+                ctx.arc(0, 0, 35, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 202, 40, ${alphaFill})`;
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(0, 0, 35, 0, Math.PI * 2);
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = `rgba(255, 202, 40, ${alphaStroke})`;
+                ctx.stroke();
+            }
+
+            // Texto sempre de pé (anula a rotação da câmera)
+            ctx.save();
+            ctx.rotate(camAngle);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 4;
+            
+            // Coloca um ícone no texto se for o selecionado
+            let labelText = isSelected ? `🎯 ${label}` : label;
+            ctx.fillText(labelText, 0, 30);
+            ctx.restore();
+
+            // Rotação do Corpo
+            ctx.rotate(rotationAngle);
+            
+            ctx.fillStyle = colorBody;
+            ctx.beginPath(); ctx.ellipse(0, 0, 12, 20, 0, 0, Math.PI*2); ctx.fill();
+            
+            ctx.fillStyle = '#ffdfc4';
+            ctx.beginPath(); ctx.arc(-5, 20, 5, 0, Math.PI*2); ctx.fill(); 
+            ctx.beginPath(); ctx.arc(-5, -20, 5, 0, Math.PI*2); ctx.fill();
+
+            ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI*2); ctx.fill(); 
+            
+            ctx.fillStyle = colorHair;
+            ctx.beginPath(); ctx.arc(0, 0, 10.5, Math.PI / 2, -Math.PI / 2); ctx.fill(); 
+
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath(); ctx.arc(-10, 0, 2, 0, Math.PI*2); ctx.fill(); 
+
+            ctx.restore(); 
+        }
+
+        function drawParkFloor() {
+            const step = 60;
+            ctx.lineWidth = 1;
+            for(let x = -1500; x <= 1500; x += step) {
+                for(let y = -1500; y <= 1500; y += step) {
+                    ctx.fillStyle = (Math.abs(x + y) % (step * 2) === 0) ? '#282833' : '#2d2d3a';
+                    ctx.fillRect(x, y, step, step);
+                }
+            }
+        }
+
+        function drawCarouselTop() {
+            ctx.save();
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 30; ctx.shadowOffsetY = 15;
+            
+            let numWedges = 12;
+            let wedgeAngle = (Math.PI * 2) / numWedges;
+            for (let i = 0; i < numWedges; i++) {
+                ctx.beginPath(); ctx.moveTo(0, 0);
+                ctx.arc(0, 0, diskRadius, i * wedgeAngle, (i + 1) * wedgeAngle);
+                ctx.fillStyle = i % 2 === 0 ? '#ff4757' : '#feca57'; 
+                ctx.fill();
+            }
+            ctx.shadowColor = 'transparent'; 
+
+            ctx.beginPath(); ctx.arc(0, 0, diskRadius, 0, Math.PI*2);
+            ctx.lineWidth = 6; ctx.strokeStyle = '#ff6b81'; ctx.stroke();
+            
+            // Miolo central
+            ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI*2); ctx.fillStyle = '#dfe4ea'; ctx.fill();
+            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fillStyle = '#a4b0be'; ctx.fill();
+
+            for (let i = 0; i < numWedges; i++) {
+                let ang = i * wedgeAngle + (wedgeAngle/2);
+                ctx.beginPath(); ctx.arc((diskRadius - 30) * Math.cos(ang), (diskRadius - 30) * Math.sin(ang), 8, 0, Math.PI*2);
+                ctx.fillStyle = '#ffda79'; ctx.fill();
+                ctx.lineWidth = 2; ctx.strokeStyle = '#ccae62'; ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const p = getParams();
+            const theta = p.omega * simTime;
+
+            // FÍSICA DOS REFERENCIAIS
+            // A origem do universo é SEMPRE o eixo do carrossel.
+            let camAngle = (currentFrame === 'disk') ? theta : 0;
+
+            ctx.save();
+            // Move o Eixo (0,0) para o centro da tela
+            ctx.translate(cx, cy); 
+            ctx.scale(p.zoom, p.zoom);
+            
+            // Rotaciona todo o sistema de coordenadas dependendo do referencial
+            ctx.rotate(-camAngle);
+
+            // 1. O Chão e a Pessoa Fixa
+            drawParkFloor();
+            // Passamos a verificação (currentFrame === 'ground') para saber se é o selecionado
+            drawPersonTopDown(statObsD, 0, '#2ecc71', '#2c3e50', 'Parque', Math.PI, camAngle, currentFrame === 'ground');
+
+            // Trajetória do Parque (visível apenas no ref. rotativo)
+            if (currentFrame === 'disk') {
+                ctx.beginPath(); ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(46, 204, 113, 0.4)';
+                ctx.lineWidth = 3; ctx.arc(0, 0, statObsD, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+            }
+
+            // 2. O Carrossel e a Pessoa Rotativa
+            ctx.save();
+            ctx.rotate(theta); // O carrossel gira em relação ao espaço absoluto
+            drawCarouselTop();
+            ctx.restore();
+
+            let obsX = p.R * Math.cos(theta);
+            let obsY = p.R * Math.sin(theta);
+            let faceDir = theta + (p.omega > 0 ? -Math.PI/2 : Math.PI/2);
+            
+            // Passamos a verificação (currentFrame === 'disk') para saber se é o selecionado
+            drawPersonTopDown(obsX, obsY, '#3498db', '#f1c40f', 'Carrossel', faceDir, camAngle, currentFrame === 'disk');
+
+            // Trajetória do Carrossel (visível apenas no ref. fixo)
+            if (currentFrame === 'ground' && p.R > 0) {
+                ctx.beginPath(); ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(52, 152, 219, 0.6)';
+                ctx.lineWidth = 3; ctx.arc(0, 0, p.R, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+            }
+
+            // 3. Linha de Distância Relativa (Mostra a variação visualmente)
+            ctx.beginPath();
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.moveTo(statObsD, 0); 
+            ctx.lineTo(obsX, obsY); 
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Marcação do Eixo (para não restar dúvidas)
+            ctx.save();
+            ctx.rotate(camAngle);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('EIXO', 0, 5);
+            ctx.restore();
+
+            ctx.restore(); 
+
+            // --- CÁLCULO AO VIVO ---
+            // A distância (via Lei dos Cossenos) é a mesma em qualquer referencial
+            let dist = Math.hypot(statObsD - obsX, 0 - obsY);
+            
+            document.getElementById('res-frame').innerText = currentFrame === 'ground' ? "Fixo (Terra)" : "Rotativo (Carrossel)";
+            document.getElementById('res-frame').style.color = currentFrame === 'ground' ? "#2ecc71" : "#3498db";
+            
+            document.getElementById('res-dist').innerText = dist.toFixed(1) + " m";
+            document.getElementById('dist-min').innerText = Math.abs(statObsD - p.R).toFixed(0) + "m";
+            document.getElementById('dist-max').innerText = (statObsD + p.R).toFixed(0) + "m";
+        }
+
+        // Continua chamando o requestAnimationFrame para atualizar a tela,
+        // garantindo que o piscar (baseado em performance.now) não pare.
+        function update() {
+            if (isRunning) simTime += 0.016; 
+            drawScene();
+            requestAnimationFrame(update);
+        }
+
+        function toggleSim() {
+            isRunning = !isRunning;
+            btnStart.innerText = isRunning ? "Pausar" : "Retomar";
+            btnStart.style.backgroundColor = isRunning ? "#ef4444" : "#4ade80";
+        }
+
+        updateFrameFromRadio();
+        update();
+
+    </script>
+</body>
+</html>

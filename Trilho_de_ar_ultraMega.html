@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Experimental: MRUV, Ângulo e MMQ</title>
+    
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script type="text/javascript" id="MathJax-script" async
+      src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
+    </script>
+
+    <style>
+        body { font-family: 'Times New Roman', Times, serif; background-color: #f4f4f9; color: #333; max-width: 950px; margin: 0 auto; padding: 20px; }
+        h1, h2, h3 { text-align: center; color: #2c3e50; }
+        
+        .painel { background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-align: center; }
+        .painel-resultados { text-align: left; }
+        
+        select, input, button { padding: 10px; font-size: 16px; margin: 5px; }
+        input[type="number"] { width: 80px; }
+        
+        button { background-color: #3498db; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; transition: background 0.3s; }
+        button:hover { background-color: #2980b9; }
+        button:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        
+        #btn-calcular { background-color: #27ae60; }
+        #btn-calcular:hover { background-color: #2ecc71; }
+        #btn-reset { background-color: #e67e22; }
+        #btn-reset:hover { background-color: #d35400; }
+        
+        /* NOVO PALCO DE SIMULAÇÃO (Resolve a sobreposição) */
+        .palco-simulacao {
+            position: relative;
+            width: 100%;
+            height: 400px; /* Altura suficiente para comportar o trilho a 45 graus */
+            background: linear-gradient(135deg, #eef2f5 0%, #dcdde1 100%);
+            border: 2px solid #bdc3c7;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            overflow: hidden;
+            box-shadow: inset 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        /* AJUSTE DO TRILHO (Renderização aprimorada) */
+        .trilho-container { 
+            width: 130%; /* Maior para não faltar trilho na diagonal */
+            height: 18px; 
+            background: linear-gradient(to bottom, #95a5a6, #7f8c8d); 
+            position: absolute; 
+            top: 40px; /* Ponto de articulação */
+            left: 0;
+            border-bottom: 4px solid #34495e;
+            transform-origin: top left; 
+            transition: transform 0.5s ease; 
+        }
+        
+        /* CARRINHO MELHORADO */
+        .carrinho { 
+            width: 50px; 
+            height: 25px; 
+            background: linear-gradient(to bottom, #e74c3c, #c0392b); 
+            position: absolute; 
+            bottom: 100%; /* Senta perfeitamente sobre o trilho */
+            left: 0; 
+            border-radius: 5px 5px 0 0; 
+            z-index: 10;
+            box-shadow: 2px -2px 5px rgba(0,0,0,0.3);
+        }
+        
+        /* Rodinhas do Carrinho */
+        .carrinho::before, .carrinho::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            width: 12px;
+            height: 12px;
+            background-color: #2c3e50;
+            border-radius: 50%;
+            border: 2px solid #ecf0f1;
+        }
+        .carrinho::before { left: 5px; }
+        .carrinho::after { right: 5px; }
+
+        /* SENSORES MELHORADOS (Fotocélulas) */
+        .marca { 
+            position: absolute; 
+            bottom: 100%; 
+            width: 14px; 
+            height: 35px; 
+            background: linear-gradient(to right, #2c3e50, #34495e); 
+            z-index: 5;
+            border-radius: 3px 3px 0 0;
+            transform: translateX(-50%); /* Centraliza no ponto exato */
+        }
+        /* Feixe de luz simulado no sensor */
+        .marca::after {
+            content: '';
+            position: absolute;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 6px;
+            height: 6px;
+            background-color: #e74c3c;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #e74c3c;
+        }
+
+        .marca-label { 
+            position: absolute; 
+            top: 25px; /* Colocado abaixo do trilho */
+            font-size: 14px; 
+            font-weight: bold; 
+            transform: translateX(-50%); 
+            color: #2c3e50; 
+            background: rgba(255,255,255,0.8);
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+        
+        /* Tabelas */
+        table { width: 100%; border-collapse: collapse; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        th, td { border: 1px solid #bdc3c7; padding: 10px; text-align: center; }
+        th { background-color: #34495e; color: white; }
+        .aviso { color: #c0392b; font-weight: bold; margin-top: 10px; }
+        .comparativo-box { background-color: #e8f6f3; border-left: 5px solid #1abc9c; padding: 15px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+    <h1>Prática de Laboratório: MRUV e Plano Inclinado</h1>
+    <h2>Cinemática Exata e MMQ</h2>
+
+    <div class="painel">
+        <label for="angulo"><strong>Ângulo da Calha ($\theta$):</strong></label>
+        <input type="number" id="angulo" value="10" min="1" max="45" step="1"> ° 
+        
+        <label for="posicao"><strong>Sensor ($x$):</strong></label>
+        <select id="posicao">
+            <option value="0.20">0,20 m</option>
+            <option value="0.40">0,40 m</option>
+            <option value="0.60">0,60 m</option>
+            <option value="0.80">0,80 m</option>
+            <option value="1.00">1,00 m</option>
+        </select>
+        
+        <br>
+        <button id="btn-lancar" onclick="iniciarLancamento()">Soltar Carrinho</button>
+        <button id="btn-calcular" onclick="calcularMMQ()" disabled>Calcular MMQ</button>
+        <button id="btn-reset" onclick="resetarExperimento()">Resetar Experimento</button>
+        <div id="status-msg" class="aviso">Ajuste o ângulo e inicie a experiência. O ângulo será bloqueado no 1º lançamento.</div>
+    </div>
+
+    <!-- Wrapper adicionado para conter fisicamente a calha rotacionada -->
+    <div class="palco-simulacao">
+        <div class="trilho-container" id="trilho" style="transform: rotate(10deg);">
+            <div class="carrinho" id="carrinho"></div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Posição $x$ (m)</th>
+                <th>$t_1$ (s)</th>
+                <th>$t_2$ (s)</th>
+                <th>$t_3$ (s)</th>
+                <th>$t_4$ (s)</th>
+                <th>$t_5$ (s)</th>
+                <th>Média $\bar{t}$ (s)</th>
+            </tr>
+        </thead>
+        <tbody id="tabela-dados"></tbody>
+    </table>
+
+    <div class="painel painel-resultados" id="painel-resultados" style="display: none;">
+        <h3>Resultados do Ajuste Linear e Comparativo Teórico</h3>
+        <p><strong>Equação Linearizada:</strong> $Y = A + BX$, onde $Y = x$ e $X = \bar{t}^2$</p>
+        
+        <div class="comparativo-box">
+            <h4>1. Coeficiente Linear ($A$)</h4>
+            <p><strong>Teórico ($A_{teo}$):</strong> $0.0000$ m (Carrinho parte do repouso)</p>
+            <p id="res-A"><strong>Experimental ($A_{exp}$):</strong> </p>
+        </div>
+
+        <div class="comparativo-box">
+            <h4>2. Coeficiente Angular ($B$)</h4>
+            <p id="teo-B"><strong>Teórico ($B_{teo} = \frac{g \sin \theta}{2}$):</strong> </p>
+            <p id="res-B"><strong>Experimental ($B_{exp}$):</strong> </p>
+            <p id="erro-B" style="color: #c0392b; font-weight: bold;">Erro Relativo de B: </p>
+        </div>
+
+        <div class="comparativo-box">
+            <h4>3. Aceleração da Gravidade ($g$)</h4>
+            <p><strong>Teórico Local ($g_{teo}$):</strong> $9.80 \text{ m/s}^2$</p>
+            <p id="res-g"><strong>Experimental ($g_{exp} = \frac{2 B_{exp}}{\sin \theta}$):</strong> </p>
+            <p id="erro-g" style="color: #c0392b; font-weight: bold;">Erro Relativo de g: </p>
+        </div>
+    </div>
+
+    <script>
+        const g_local = 9.80;
+        const mu_cinetico = 0.015; 
+        const comprimento_trilho = 1.20; 
+        const posicoes = [0.20, 0.40, 0.60, 0.80, 1.00];
+        const dados = {};
+        const max_repeticoes = 5;
+        let posicoes_completas = 0;
+        let angulo_travado = false;
+        let emMovimento = false; 
+
+        const tbody = document.getElementById('tabela-dados');
+        const trilho = document.getElementById('trilho');
+        const inputAngulo = document.getElementById('angulo');
+        const carrinho = document.getElementById('carrinho');
+        const msg = document.getElementById('status-msg');
+        const btnLancar = document.getElementById('btn-lancar');
+        const btnCalcular = document.getElementById('btn-calcular');
+        const painelResultados = document.getElementById('painel-resultados');
+
+        // Atualizar visual do trilho ao mudar ângulo (apenas se destravado)
+        inputAngulo.addEventListener('input', function() {
+            if(!angulo_travado) trilho.style.transform = `rotate(${this.value}deg)`;
+        });
+
+        // Montar a tabela inicial
+        function inicializarTabela() {
+            tbody.innerHTML = '';
+            posicoes.forEach(pos => {
+                dados[pos.toFixed(2)] = [];
+                let tr = document.createElement('tr');
+                let html = `<td>${pos.toFixed(2)}</td>`;
+                for(let i=1; i<=5; i++) html += `<td id="cel-${pos.toFixed(2)}-${i}">-</td>`;
+                html += `<td id="media-${pos.toFixed(2)}"> - </td>`;
+                tr.innerHTML = html;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Criar as marcas no trilho
+        posicoes.forEach(pos => {
+            let marca = document.createElement('div');
+            marca.className = 'marca';
+            // Cálculo baseado na proporção da distância total
+            let leftPercent = (pos / comprimento_trilho) * 100;
+            marca.style.left = `${leftPercent}%`;
+            
+            let label = document.createElement('div');
+            label.className = 'marca-label';
+            label.style.left = `${leftPercent}%`;
+            label.innerText = `${pos.toFixed(2)}m`;
+            
+            trilho.appendChild(marca);
+            trilho.appendChild(label);
+        });
+
+        inicializarTabela(); // Chama na primeira execução
+
+        function iniciarLancamento() {
+            const select = document.getElementById('posicao');
+            const pos_alvo = parseFloat(select.value);
+            const pos_str = pos_alvo.toFixed(2);
+
+            if (dados[pos_str].length >= max_repeticoes) {
+                msg.innerText = `As 5 medições para ${pos_str}m já foram concluídas. Selecione outra posição.`;
+                return;
+            }
+            if (emMovimento) return;
+            
+            emMovimento = true;
+            btnLancar.disabled = true;
+
+            // Trava o ângulo no primeiro lançamento para não estragar a coleta
+            if (!angulo_travado) {
+                inputAngulo.disabled = true;
+                angulo_travado = true;
+            }
+
+            const theta_deg = parseFloat(inputAngulo.value);
+            const theta_rad = theta_deg * Math.PI / 180;
+            const a_real = g_local * (Math.sin(theta_rad) - mu_cinetico * Math.cos(theta_rad));
+
+            msg.innerText = "Carrinho em movimento...";
+            carrinho.style.left = '0%';
+
+            let inicioTempo = null;
+            let sensorRegistrado = false;
+
+            function passoAnimacao(timestamp) {
+                if (!inicioTempo) inicioTempo = timestamp;
+                
+                let t_decorrido = (timestamp - inicioTempo) / 1000; 
+                let x_atual = 0.5 * a_real * (t_decorrido * t_decorrido);
+                let porcentagemTrilho = (x_atual / comprimento_trilho) * 100;
+                
+                carrinho.style.left = `${Math.min(porcentagemTrilho, 100)}%`;
+
+                if (x_atual >= pos_alvo && !sensorRegistrado) {
+                    sensorRegistrado = true;
+                    registrarDado(pos_str, t_decorrido);
+                }
+
+                if (x_atual < comprimento_trilho) {
+                    requestAnimationFrame(passoAnimacao);
+                } else {
+                    emMovimento = false;
+                    btnLancar.disabled = false;
+                    carrinho.style.left = '0%'; 
+                }
+            }
+
+            requestAnimationFrame(passoAnimacao);
+        }
+
+        function registrarDado(pos_str, t_real) {
+            const ruido = (Math.random() - 0.5) * 0.08; 
+            const t_medido = (t_real + ruido).toFixed(3);
+
+            dados[pos_str].push(parseFloat(t_medido));
+            const tentativa = dados[pos_str].length;
+            
+            document.getElementById(`cel-${pos_str}-${tentativa}`).innerText = t_medido;
+            
+            if (tentativa === max_repeticoes) {
+                const soma = dados[pos_str].reduce((a, b) => a + b, 0);
+                document.getElementById(`media-${pos_str}`).innerText = (soma / max_repeticoes).toFixed(3);
+                posicoes_completas++;
+                
+                if (posicoes_completas === posicoes.length) {
+                    btnCalcular.disabled = false;
+                    msg.innerText = "Todas as medições concluídas! Calcule o MMQ.";
+                    msg.style.color = "green";
+                } else {
+                    msg.innerText = `Medições para ${pos_str}m finalizadas.`;
+                }
+            } else {
+                msg.innerText = `Tempo registado na marca ${pos_str}m (Lançamento ${tentativa}/5). A aguardar que o carrinho chegue ao fim.`;
+            }
+        }
+
+        function calcularMMQ() {
+            const theta_deg = parseFloat(inputAngulo.value);
+            const theta_rad = theta_deg * Math.PI / 180;
+            const sen_theta = Math.sin(theta_rad);
+
+            let X = [], Y = [];
+            let N = posicoes.length;
+
+            posicoes.forEach(pos => {
+                const p = pos.toFixed(2);
+                const media = dados[p].reduce((a, b) => a + b, 0) / max_repeticoes;
+                X.push(media * media);
+                Y.push(parseFloat(p));
+            });
+
+            let sumX = X.reduce((a, b) => a + b, 0);
+            let sumY = Y.reduce((a, b) => a + b, 0);
+            let sumXY = X.reduce((acc, curr, i) => acc + (curr * Y[i]), 0);
+            let sumX2 = X.reduce((acc, curr) => acc + (curr * curr), 0);
+
+            let delta = N * sumX2 - (sumX * sumX);
+            let B_exp = (N * sumXY - sumX * sumY) / delta;
+            let A_exp = (sumY * sumX2 - sumX * sumXY) / delta;
+            
+            let a_teo = g_local * sen_theta;
+            let B_teo = a_teo / 2;
+            let g_exp = (2 * B_exp) / sen_theta;
+
+            let erro_B = Math.abs((B_exp - B_teo) / B_teo) * 100;
+            let erro_g = Math.abs((g_exp - g_local) / g_local) * 100;
+
+            painelResultados.style.display = 'block';
+            
+            document.getElementById('res-A').innerHTML = `<strong>Experimental ($A_{exp}$):</strong> ${A_exp.toFixed(4)} m`;
+            document.getElementById('teo-B').innerHTML = `<strong>Teórico ($B_{teo} = \\frac{g \\sin \\theta}{2}$):</strong> ${B_teo.toFixed(4)} m/s²`;
+            document.getElementById('res-B').innerHTML = `<strong>Experimental ($B_{exp}$):</strong> ${B_exp.toFixed(4)} m/s²`;
+            document.getElementById('erro-B').innerHTML = `Erro Relativo de B: ${erro_B.toFixed(2)} %`;
+            
+            document.getElementById('res-g').innerHTML = `<strong>Experimental ($g_{exp} = \\frac{2 B_{exp}}{\\sin \\theta}$):</strong> ${g_exp.toFixed(3)} m/s²`;
+            document.getElementById('erro-g').innerHTML = `Erro Relativo de g: ${erro_g.toFixed(2)} %`;
+            
+            MathJax.typesetPromise();
+        }
+
+        function resetarExperimento() {
+            if (emMovimento) return; 
+            
+            inputAngulo.disabled = false;
+            angulo_travado = false;
+            posicoes_completas = 0;
+            
+            btnLancar.disabled = false;
+            btnCalcular.disabled = true;
+            painelResultados.style.display = 'none';
+            msg.style.color = "#c0392b";
+            msg.innerText = "Experimento reiniciado. Ajuste o ângulo e inicie a coleta de dados.";
+            
+            inicializarTabela();
+        }
+    </script>
+</body>
+</html>

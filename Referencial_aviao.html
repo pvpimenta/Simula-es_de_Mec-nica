@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Física: Referencial e Trajetória Interativo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a24;
+            color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #4facfe;
+            margin-bottom: 5px;
+        }
+        p { color: #a0a0b0; margin-top: 0; margin-bottom: 20px; text-align: center; max-width: 800px; }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1300px;
+            width: 100%;
+        }
+        
+        /* Painel de Controles */
+        .controls {
+            background: #252535;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .frame-selector {
+            background: #1e1e2c;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #3f3f5a;
+            position: relative;
+        }
+        .frame-selector h3 {
+            margin: 0 0 10px 0;
+            font-size: 1em;
+            color: #ffca28;
+        }
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: 0.2s;
+        }
+        .radio-group label:hover { color: #4facfe; }
+        .radio-group input {
+            margin-right: 10px;
+            accent-color: #4facfe;
+            width: 18px;
+            height: 18px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .control-group label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 0.85em;
+            color: #9cdacd;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #4facfe;
+        }
+        .value-display {
+            font-size: 0.85em;
+            color: #b0b0c0;
+            text-align: right;
+            margin-top: 2px;
+        }
+        
+        /* Botões */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        button {
+            flex: 1;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 1em;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button:active { transform: scale(0.98); }
+        #btn-start { background-color: #4ade80; color: #064e3b; }
+        #btn-start:hover { background-color: #22c55e; }
+        #btn-reset { background-color: #ef4444; }
+        #btn-reset:hover { background-color: #dc2626; }
+        button:disabled { background-color: #444 !important; color: #888 !important; cursor: not-allowed; }
+
+        /* Canvas e Resultados */
+        .canvas-container {
+            position: relative;
+            flex-grow: 1;
+        }
+        canvas {
+            background: linear-gradient(to bottom, #74ebd5 0%, #9face6 100%);
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+            width: 100%;
+            display: block;
+            /* Transição suave do cursor manipulada no JS */
+        }
+        
+        .results-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(20, 20, 30, 0.85);
+            border: 1px solid #4a4a6a;
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 200px;
+            backdrop-filter: blur(5px);
+            pointer-events: none; /* Ignora cliques no painel */
+        }
+        .results-panel h3 {
+            margin: 0 0 10px 0;
+            color: #4facfe;
+            font-size: 1em;
+            text-align: center;
+            border-bottom: 1px solid #3f3f5a;
+            padding-bottom: 5px;
+        }
+        .stat-line {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            margin-bottom: 6px;
+        }
+        .stat-line span.val { color: #fff; font-weight: bold; }
+        .stat-line span.highlight { color: #ffca28; }
+        
+        .instruction-badge {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            pointer-events: none;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(79, 172, 254, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(79, 172, 254, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(79, 172, 254, 0); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>Simulador de Referencial Inercial</h1>
+    <p>Observe como a trajetória de um objeto em queda livre depende de quem está olhando. Alterne entre os observadores clicando no menu ou <b>clicando diretamente nos personagens</b> na animação!</p>
+
+    <div class="container">
+        <!-- Controles -->
+        <div class="controls">
+            
+            <div class="frame-selector">
+                <h3>👀 Escolha o Referencial:</h3>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="frame" value="ground" checked onchange="updateFrameFromRadio()"> 
+                        🌍 Observador no Solo (Parado)
+                    </label>
+                    <label>
+                        <input type="radio" name="frame" value="airplane" onchange="updateFrameFromRadio()"> 
+                        ✈️ Observador no Avião (Em mov.)
+                    </label>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label for="velocity">Velocidade do Avião (m/s)</label>
+                <input type="range" id="velocity" min="20" max="80" step="1" value="50">
+                <div class="value-display" id="velocity-val">50 m/s</div>
+            </div>
+
+            <div class="control-group">
+                <label for="height">Altitude de Lançamento (m)</label>
+                <input type="range" id="height" min="100" max="400" step="10" value="300">
+                <div class="value-display" id="height-val">300 m</div>
+            </div>
+
+            <div class="control-group">
+                <label for="gravity">Gravidade (m/s²)</label>
+                <input type="range" id="gravity" min="2" max="20" step="0.1" value="9.8">
+                <div class="value-display" id="gravity-val">9.8 m/s²</div>
+            </div>
+
+            <div class="btn-group">
+                <button id="btn-start" onclick="startSim()">Iniciar / Soltar</button>
+                <button id="btn-reset" onclick="resetSim()">Resetar</button>
+            </div>
+            
+            <div style="font-size: 0.8em; color: #888; margin-top: 10px; text-align: justify;">
+                <strong>Dica:</strong> O avião soltará o pacote automaticamente ao atingir 150m. Durante a queda, clique no avião ou na pessoa para alterar o referencial e ver a mágica acontecer!
+            </div>
+        </div>
+
+        <!-- Área de Simulação -->
+        <div class="canvas-container">
+            <canvas id="simCanvas" width="950" height="600"></canvas>
+            
+            <div class="instruction-badge">👆 Clique no avião ou na pessoa para trocar a câmera</div>
+
+            <div class="results-panel">
+                <h3>Dados de Voo (Relativos)</h3>
+                <div class="stat-line">Trajetória Vista: <span class="val highlight" id="res-traj">Parábola</span></div>
+                <div class="stat-line">Vel. Horiz. (Vx): <span class="val" id="res-vx">50 m/s</span></div>
+                <div class="stat-line">Vel. Vertical (Vy): <span class="val" id="res-vy">0 m/s</span></div>
+                <div class="stat-line">Tempo de Queda: <span class="val" id="res-time">0.00 s</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Elementos UI
+        const velInput = document.getElementById('velocity');
+        const heightInput = document.getElementById('height');
+        const gravityInput = document.getElementById('gravity');
+        const btnStart = document.getElementById('btn-start');
+        
+        // Variáveis de Estado
+        let isRunning = false;
+        let hasDropped = false;
+        let simTime = 0;
+        let dropTime = 0;
+        let dropX_abs = 0;
+        let dropY_abs = 0;
+        let currentFrame = 'ground';
+        let animationId;
+        let pulseAnim = 0; // Para animar o brilho
+        
+        // Configurações do Mundo (1 pixel = 1 metro)
+        const groundY = 500; 
+        const planeStartX = 0;
+        const autoDropX = 150; 
+        const planeScreenX_AirplaneMode = 150; 
+        const obsWorldX = 300; // Posição fixa X do observador no mundo
+        const obsWorldY = groundY - 15; // Posição fixa Y do observador
+        
+        // Nuvens para parallax
+        const clouds = [];
+        for(let i=0; i<8; i++) {
+            clouds.push({ x: Math.random() * 2000, y: Math.random() * 250 + 20, size: 0.5 + Math.random() });
+        }
+
+        function getParams() {
+            return {
+                V: parseFloat(velInput.value),
+                H: parseFloat(heightInput.value),
+                G: parseFloat(gravityInput.value)
+            };
+        }
+
+        // --- SISTEMA DE CLIQUE E HOVER (INTERATIVIDADE) ---
+        
+        // Calcula as posições atuais na tela
+        function getScreenPositions() {
+            const p = getParams();
+            let planeX_abs = planeStartX + p.V * simTime;
+            let planeY_abs = groundY - p.H;
+            
+            let cameraX = (currentFrame === 'ground') ? 0 : (planeX_abs - planeScreenX_AirplaneMode);
+            
+            return {
+                plane: { x: planeX_abs - cameraX, y: planeY_abs },
+                observer: { x: obsWorldX - cameraX, y: obsWorldY }
+            };
+        }
+
+        // Verifica se o mouse está sobre uma figura
+        function checkHit(mouseX, mouseY) {
+            const pos = getScreenPositions();
+            
+            // Hitbox do avião (centro +- larg/alt)
+            let hitPlane = Math.abs(mouseX - pos.plane.x) < 60 && Math.abs(mouseY - pos.plane.y) < 40;
+            // Hitbox do observador (centro +- larg/alt)
+            let hitObs = Math.abs(mouseX - pos.observer.x) < 40 && Math.abs(mouseY - pos.observer.y) < 50;
+            
+            return { hitPlane, hitObs };
+        }
+
+        // Evento de movimento (Hover)
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            const hits = checkHit(mouseX, mouseY);
+            
+            if (hits.hitPlane || hits.hitObs) {
+                canvas.style.cursor = 'pointer';
+            } else {
+                canvas.style.cursor = 'default';
+            }
+        });
+
+        // Evento de Clique
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            const hits = checkHit(mouseX, mouseY);
+            
+            if (hits.hitPlane) {
+                setFrame('airplane');
+            } else if (hits.hitObs) {
+                setFrame('ground');
+            }
+        });
+
+        // Atualiza referencial pelo Radio Button
+        function updateFrameFromRadio() {
+            const radios = document.getElementsByName('frame');
+            for(let r of radios) { if(r.checked) currentFrame = r.value; }
+            if (!isRunning) drawScene();
+        }
+
+        // Atualiza referencial dinamicamente pelo JS (Click no Canvas)
+        function setFrame(frameType) {
+            currentFrame = frameType;
+            // Atualiza os radio buttons visualmente
+            document.querySelector(`input[name="frame"][value="${frameType}"]`).checked = true;
+            // Redesenha imediatamente se estiver pausado
+            if (!isRunning) drawScene();
+        }
+
+        // Atualiza os displays dos sliders
+        [velInput, heightInput, gravityInput].forEach(input => {
+            input.addEventListener('input', (e) => {
+                document.getElementById(e.target.id + '-val').innerText = e.target.value + (e.target.id === 'gravity' ? ' m/s²' : (e.target.id === 'velocity' ? ' m/s' : ' m'));
+                if (!isRunning) resetSim(); 
+            });
+        });
+
+        // --- FUNÇÕES DE DESENHO ---
+
+        function drawPlane(x, y) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Corpo
+            ctx.fillStyle = '#f0f0f0';
+            ctx.beginPath(); ctx.ellipse(0, 0, 45, 12, 0, 0, Math.PI * 2); ctx.fill();
+            
+            // Asa de trás
+            ctx.fillStyle = '#d0d0d0';
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-15, -25); ctx.lineTo(10, -25); ctx.lineTo(15, 0); ctx.fill();
+            
+            // Cauda
+            ctx.fillStyle = '#4facfe';
+            ctx.beginPath(); ctx.moveTo(-35, -5); ctx.lineTo(-45, -25); ctx.lineTo(-25, -25); ctx.lineTo(-20, -5); ctx.fill();
+            
+            // Asa da frente
+            ctx.fillStyle = '#e0e0e0';
+            ctx.beginPath(); ctx.moveTo(-5, 5); ctx.lineTo(-25, 30); ctx.lineTo(5, 30); ctx.lineTo(15, 5); ctx.fill();
+            
+            // Cabine (Cockpit)
+            ctx.fillStyle = '#1e1e2c';
+            ctx.beginPath(); ctx.ellipse(25, -4, 10, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+            // Marcador visual de Referencial Ativo
+            if (currentFrame === 'airplane') {
+                let alpha = 0.3 + Math.sin(pulseAnim) * 0.1; // Efeito pulsante suave
+                ctx.fillStyle = `rgba(255, 202, 40, ${alpha})`;
+                ctx.beginPath(); ctx.arc(0, 0, 70, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#ffca28';
+                ctx.font = 'bold 13px Arial'; ctx.fillText('🎥 Você', -22, -35);
+            }
+
+            ctx.restore();
+        }
+
+        function drawPackage(x, y) {
+            ctx.fillStyle = '#8b5a2b';
+            ctx.fillRect(x - 8, y - 8, 16, 16);
+            ctx.strokeStyle = '#f4a460';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x - 8, y - 8, 16, 16);
+            ctx.beginPath(); ctx.moveTo(x, y - 8); ctx.lineTo(x, y + 8); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x - 8, y); ctx.lineTo(x + 8, y); ctx.stroke();
+        }
+
+        function drawObserverGround(x, y) {
+            ctx.save();
+            ctx.strokeStyle = '#1e1e2c'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 20); ctx.stroke(); // Corpo
+            ctx.beginPath(); ctx.moveTo(x, y - 20); ctx.lineTo(x - 10, y - 10); ctx.stroke(); // Braço 1
+            ctx.beginPath(); ctx.moveTo(x, y - 20); ctx.lineTo(x + 10, y - 15); ctx.stroke(); // Braço 2 
+            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 8, y + 15); ctx.stroke(); // Perna 1
+            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 8, y + 15); ctx.stroke(); // Perna 2
+            
+            ctx.fillStyle = '#1e1e2c';
+            ctx.beginPath(); ctx.arc(x, y - 25, 6, 0, Math.PI*2); ctx.fill();
+
+            if (currentFrame === 'ground') {
+                let alpha = 0.3 + Math.sin(pulseAnim) * 0.1;
+                ctx.fillStyle = `rgba(255, 202, 40, ${alpha})`;
+                ctx.beginPath(); ctx.arc(x, y - 10, 45, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#ffca28';
+                ctx.font = 'bold 13px Arial'; ctx.fillText('🎥 Você', x - 22, y - 35);
+            }
+            ctx.restore();
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const p = getParams();
+            pulseAnim += 0.05; // Atualiza a animação do brilho
+            
+            // Cálculos da Física Absoluta
+            let planeX_abs = planeStartX + p.V * simTime;
+            let planeY_abs = groundY - p.H;
+            
+            let pkgX_abs = planeX_abs;
+            let pkgY_abs = planeY_abs;
+            
+            if (hasDropped) {
+                let t_queda = simTime - dropTime;
+                pkgX_abs = dropX_abs + p.V * t_queda;
+                pkgY_abs = dropY_abs + 0.5 * p.G * t_queda * t_queda;
+            }
+
+            // Lógica da Câmera (Referencial)
+            let cameraX = 0;
+            if (currentFrame === 'ground') {
+                cameraX = 0;
+            } else {
+                cameraX = planeX_abs - planeScreenX_AirplaneMode;
+            }
+
+            // Céu e Nuvens com Parallax
+            clouds.forEach(c => {
+                let screenX = ((c.x - cameraX * 0.3) % 2000 + 2000) % 2000 - 200;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.beginPath();
+                ctx.arc(screenX, c.y, 30 * c.size, 0, Math.PI*2);
+                ctx.arc(screenX + 30*c.size, c.y - 10*c.size, 40 * c.size, 0, Math.PI*2);
+                ctx.arc(screenX + 60*c.size, c.y, 30 * c.size, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            // Chão
+            ctx.fillStyle = '#2d8a4e'; 
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+            ctx.fillStyle = '#5c4033'; 
+            ctx.fillRect(0, groundY + 8, canvas.width, canvas.height - groundY - 8);
+
+            // Grid X (Chão desliza se a câmera for o avião)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Consolas, monospace';
+            ctx.lineWidth = 1;
+
+            let gridSpacing = 50;
+            let offsetX = ((cameraX % gridSpacing) + gridSpacing) % gridSpacing;
+            let firstLabelX = Math.floor(cameraX / gridSpacing) * gridSpacing;
+
+            for (let i = -1; i <= canvas.width / gridSpacing + 1; i++) {
+                let screenX = i * gridSpacing - offsetX;
+                let realX = firstLabelX + (i * gridSpacing);
+                
+                ctx.beginPath(); ctx.moveTo(screenX, groundY); ctx.lineTo(screenX, groundY + 10); ctx.stroke();
+                
+                if (realX >= 0) {
+                    ctx.fillText(realX + 'm', screenX + 3, groundY + 22);
+                }
+            }
+
+            // Grid Y (Sempre fixo na tela)
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+            for(let y = 0; y <= 500; y += 50) {
+                let screenY = groundY - y;
+                ctx.beginPath(); ctx.moveTo(0, screenY); ctx.lineTo(canvas.width, screenY); ctx.stroke();
+                if (y > 0) {
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.fillText(y + 'm', 5, screenY - 5);
+                }
+            }
+
+            // Desenhar Observador
+            drawObserverGround(obsWorldX - cameraX, obsWorldY);
+
+            // Desenhar Trajetória
+            if (hasDropped) {
+                ctx.beginPath();
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#ff4444';
+
+                if (currentFrame === 'ground') {
+                    // Parábola
+                    let steps = (simTime - dropTime) / 0.05;
+                    for (let i = 0; i <= steps; i++) {
+                        let t = i * 0.05;
+                        let x = dropX_abs + p.V * t;
+                        let y = dropY_abs + 0.5 * p.G * t * t;
+                        if (i === 0) ctx.moveTo(x - cameraX, y);
+                        else ctx.lineTo(x - cameraX, y);
+                    }
+                    ctx.stroke();
+                } else if (currentFrame === 'airplane') {
+                    // Linha reta vertical
+                    let planeScreenX = planeX_abs - cameraX; 
+                    ctx.moveTo(planeScreenX, dropY_abs);
+                    ctx.lineTo(planeScreenX, pkgY_abs);
+                    ctx.stroke();
+                }
+                ctx.setLineDash([]);
+            }
+
+            // Desenhar Pacote e Avião
+            if (hasDropped) {
+                drawPackage(pkgX_abs - cameraX, pkgY_abs);
+            }
+            drawPlane(planeX_abs - cameraX, planeY_abs);
+
+            // Atualizar Painel
+            let t_fall = hasDropped ? (simTime - dropTime) : 0;
+            let vy_current = hasDropped ? (p.G * t_fall) : 0;
+            
+            if (currentFrame === 'ground') {
+                document.getElementById('res-traj').innerText = "Parábola";
+                document.getElementById('res-traj').style.color = "#ffca28";
+                document.getElementById('res-vx').innerText = p.V.toFixed(1) + " m/s";
+            } else {
+                document.getElementById('res-traj').innerText = "Reta Vertical";
+                document.getElementById('res-traj').style.color = "#4ade80";
+                document.getElementById('res-vx').innerText = "0.0 m/s";
+            }
+            
+            document.getElementById('res-vy').innerText = vy_current.toFixed(1) + " m/s";
+            document.getElementById('res-time').innerText = t_fall.toFixed(2) + " s";
+        }
+
+        // --- LÓGICA DE ATUALIZAÇÃO ---
+
+        function update() {
+            if (!isRunning) return;
+
+            const p = getParams();
+            const dt = 0.016; 
+            simTime += dt;
+
+            let planeX_abs = planeStartX + p.V * simTime;
+
+            // Solta a caixa automaticamente ao chegar no X 150
+            if (!hasDropped && planeX_abs >= autoDropX) {
+                hasDropped = true;
+                dropTime = simTime;
+                dropX_abs = planeX_abs;
+                dropY_abs = groundY - p.H;
+            }
+
+            if (hasDropped) {
+                let t_queda = simTime - dropTime;
+                let pkgY_abs = dropY_abs + 0.5 * p.G * t_queda * t_queda;
+                if (pkgY_abs >= groundY) {
+                    let t_total = Math.sqrt((2 * p.H) / p.G);
+                    simTime = dropTime + t_total;
+                    isRunning = false;
+                    btnStart.disabled = false;
+                    btnStart.innerText = "Simulação Finalizada";
+                    
+                    velInput.disabled = false;
+                    heightInput.disabled = false;
+                    gravityInput.disabled = false;
+                }
+            }
+
+            drawScene();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(update);
+            } else {
+                // Se parar mas o brilho (pulse) deve continuar animando
+                requestAnimationFrame(keepPulsing);
+            }
+        }
+        
+        // Loop apenas para manter o brilho animado enquanto parado
+        function keepPulsing() {
+            if(!isRunning) {
+                drawScene();
+                requestAnimationFrame(keepPulsing);
+            }
+        }
+
+        function startSim() {
+            if (isRunning) return;
+            
+            if (hasDropped && !isRunning) {
+                resetSim();
+            }
+
+            isRunning = true;
+            btnStart.disabled = true;
+            btnStart.innerText = "Simulando...";
+            
+            velInput.disabled = true;
+            heightInput.disabled = true;
+            gravityInput.disabled = true;
+
+            update();
+        }
+
+        function resetSim() {
+            isRunning = false;
+            hasDropped = false;
+            simTime = 0;
+            dropTime = 0;
+            cancelAnimationFrame(animationId);
+            
+            btnStart.disabled = false;
+            btnStart.innerText = "Iniciar Simulação";
+            
+            velInput.disabled = false;
+            heightInput.disabled = false;
+            gravityInput.disabled = false;
+
+            drawScene();
+        }
+
+        // Setup Inicial
+        updateFrameFromRadio();
+        resetSim();
+        keepPulsing(); // Inicia a animação passiva de brilho na seleção
+
+    </script>
+</body>
+</html>
