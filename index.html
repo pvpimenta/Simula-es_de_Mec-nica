@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratório Virtual de Física</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-hover: #0ea5e9;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            width: 100%;
+            max-width: 1100px;
+        }
+
+        .sim-card {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px 25px;
+            text-align: center;
+            text-decoration: none;
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+
+        .sim-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(to right, var(--accent), #818cf8);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+        }
+
+        .sim-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-color: rgba(56, 189, 248, 0.3);
+        }
+
+        .sim-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .icon-wrapper {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            display: inline-block;
+            transition: transform 0.3s ease;
+        }
+
+        .sim-card:hover .icon-wrapper {
+            transform: scale(1.15) rotate(5deg);
+        }
+
+        .sim-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-main);
+        }
+
+        .sim-desc {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* Responsividade extra */
+        @media (max-width: 600px) {
+            h1 { font-size: 2rem; }
+            .grid-container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Laboratório Virtual de Física</h1>
+        <p class="subtitle">Selecione uma das simulações interativas abaixo para explorar conceitos de cinemática, referenciais e dinâmica.</p>
+    </header>
+
+    <div class="grid-container">
+        
+        <!-- Simulação 1: MRUV -->
+        <a href="mruv.html" class="sim-card">
+            <div class="icon-wrapper">📐</div>
+            <div class="sim-title">MRUV e Plano Inclinado</div>
+            <div class="sim-desc">Prática de Laboratório para estudar Cinemática Exata e MMQ utilizando um carrinho em uma calha ajustável.</div>
+        </a>
+
+        <!-- Simulação 2: Hot Wheels -->
+        <a href="salto.html" class="sim-card">
+            <div class="icon-wrapper">🏎️</div>
+            <div class="sim-title">Salto Hot Wheels</div>
+            <div class="sim-desc">Configure a velocidade, gravidade e inclinação da rampa para simular o salto de um carro esportivo e bater recordes.</div>
+        </a>
+
+        <!-- Simulação 3: Referencial Inercial -->
+        <a href="referencial_queda.html" class="sim-card">
+            <div class="icon-wrapper">🛩️</div>
+            <div class="sim-title">Referencial Inercial</div>
+            <div class="sim-desc">Observe como a trajetória de um pacote em queda livre muda dependendo do observador (solo ou avião).</div>
+        </a>
+
+        <!-- Simulação 4: Movimento Circular -->
+        <a href="referencial_circular.html" class="sim-card">
+            <div class="icon-wrapper">🎠</div>
+            <div class="sim-title">Movimento Circular</div>
+            <div class="sim-desc">Análise de referenciais corretos (fixo vs rotativo) observando a relatividade da distância em um carrossel.</div>
+        </a>
+
+        <!-- Simulação 5: Efeito Magnus -->
+        <a href="efeito_magnus.html" class="sim-card">
+            <div class="icon-wrapper">⚽</div>
+            <div class="sim-title">Efeito Magnus</div>
+            <div class="sim-desc">Desafio do gol: ajuste a força e a rotação (spin) do chute para curvar a bola e marcar no gol.</div>
+        </a>
+
+    </div>
+
+</body>
+</html>
