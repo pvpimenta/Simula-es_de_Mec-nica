@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Campo Elétrico Mobile</title>
+    <style>
+        :root {
+            --bg-color: #0f0f14;
+            --text-main: #ffffff;
+            --hud-bg: rgba(0, 0, 0, 0.7);
+            --grid-color: #282832;
+            --color-x: #32c8ff;
+            --color-z: #ff32c8;
+            --color-charge: #ffc832;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Impede scroll no celular */
+            background-color: var(--bg-color);
+            font-family: 'Arial', sans-serif;
+            color: var(--text-main);
+            touch-action: none; /* Fundamental para capturar o touch sem dar zoom/scroll */
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Interface HUD */
+        .hud-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: var(--hud-bg);
+            border: 1px solid var(--grid-color);
+            padding: 15px 20px;
+            border-radius: 8px;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+        }
+
+        .hud-title {
+            color: var(--color-charge);
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .stat-line {
+            font-size: 1rem;
+            margin-bottom: 5px;
+            font-family: monospace;
+        }
+
+        .stat-x { color: var(--color-x); }
+        .stat-z { color: var(--color-z); }
+    </style>
+</head>
+<body>
+
+    <canvas id="simCanvas"></canvas>
+
+    <!-- HUD -->
+    <div class="hud-panel">
+        <div class="hud-title">Arraste a tela!</div>
+        <div class="stat-line" id="stat-angle">Ângulo: 0.0°</div>
+        <div class="stat-line stat-x" id="stat-ex">Ex: 1.00</div>
+        <div class="stat-line stat-z" id="stat-ez">Ez: 0.00</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Referências HUD
+        const statAngle = document.getElementById('stat-angle');
+        const statEx = document.getElementById('stat-ex');
+        const statEz = document.getElementById('stat-ez');
+
+        // Variáveis de ambiente
+        let width, height, centerX, centerY, scale;
+        let probePos = { x: 0, y: 0 };
+        let dragging = false;
+
+        // Configuração responsiva
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            centerX = width / 2;
+            centerY = height / 2;
+            
+            // Fator de escala baseado em uma tela base de 1000px
+            scale = width / 1000;
+            
+            // Posição inicial
+            if (probePos.x === 0 && probePos.y === 0) {
+                probePos.x = centerX + (150 * scale);
+                probePos.y = centerY - (150 * scale);
+            }
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Funções de Desenho ---
+        function drawArrow(x1, y1, x2, y2, color, thickness) {
+            const arrowSize = 15 * scale;
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = Math.max(2, thickness * scale);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(x2, y2);
+            ctx.lineTo(x2 - arrowSize * Math.cos(angle - Math.PI / 6), y2 - arrowSize * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(x2 - arrowSize * Math.cos(angle + Math.PI / 6), y2 - arrowSize * Math.sin(angle + Math.PI / 6));
+            ctx.lineTo(x2, y2);
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+
+        function drawDashedLine(x1, y1, x2, y2, color) {
+            ctx.beginPath();
+            ctx.setLineDash([10 * scale, 10 * scale]);
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = Math.max(1, 2 * scale);
+            ctx.stroke();
+            ctx.setLineDash([]); // Reset
+        }
+
+        function drawGlow(x, y, radius, colorRgb) {
+            let r = radius * scale;
+            let gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
+            gradient.addColorStop(0, `rgba(${colorRgb}, 1)`);
+            gradient.addColorStop(0.3, `rgba(${colorRgb}, 0.5)`);
+            gradient.addColorStop(1, `rgba(${colorRgb}, 0)`);
+            
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        }
+
+        // --- Interação Pointer (Mouse e Touch) ---
+        canvas.addEventListener('pointerdown', (e) => {
+            const dist = Math.hypot(e.clientX - probePos.x, e.clientY - probePos.y);
+            // Área de toque generosa (80px escalados)
+            if (dist < 80 * scale) {
+                dragging = true;
+            } else {
+                probePos.x = e.clientX;
+                probePos.y = e.clientY;
+                dragging = true;
+            }
+            canvas.setPointerCapture(e.pointerId);
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            if (dragging) {
+                probePos.x = e.clientX;
+                probePos.y = e.clientY;
+            }
+        });
+
+        canvas.addEventListener('pointerup', (e) => {
+            dragging = false;
+            canvas.releasePointerCapture(e.pointerId);
+        });
+
+        // --- Loop Principal de Animação ---
+        function render() {
+            // Cálculos físicos
+            let px = probePos.x - centerX;
+            let pz = centerY - probePos.y; // Eixo Z para cima
+            if (px === 0 && pz === 0) { px = 1; pz = 1; }
+
+            let angleRad = Math.atan2(pz, px);
+            let angleDeg = (angleRad * 180 / Math.PI);
+            if (angleDeg < 0) angleDeg += 360;
+
+            let vectorScale = 150 * scale;
+            let Ex = vectorScale * Math.cos(angleRad);
+            let Ez = vectorScale * Math.sin(angleRad); // Ez é positivo para cima
+
+            // Atualiza HUD
+            statAngle.innerText = `Ângulo: ${angleDeg.toFixed(1)}°`;
+            statEx.innerText = `E'x: ${Math.cos(angleRad).toFixed(2)}`;
+            statEz.innerText = `E'z: ${Math.sin(angleRad).toFixed(2)}`;
+
+            // Limpa tela
+            ctx.clearRect(0, 0, width, height);
+
+            // Eixos X e Z
+            ctx.strokeStyle = "#646464";
+            ctx.lineWidth = Math.max(1, 2 * scale);
+            ctx.beginPath();
+            ctx.moveTo(centerX, 0); ctx.lineTo(centerX, height); // Eixo Z
+            ctx.moveTo(0, centerY); ctx.lineTo(width, centerY); // Eixo X
+            ctx.stroke();
+
+            // Labels dos eixos
+            ctx.fillStyle = "#646464";
+            ctx.font = `italic ${30 * scale}px Arial`;
+            ctx.fillText("z'", centerX + 10, 40);
+            ctx.fillText("x'", width - 40, centerY - 15);
+
+            // Carga Central Q
+            drawGlow(centerX, centerY, 40, '255, 200, 50');
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 8 * scale, 0, Math.PI * 2);
+            ctx.fillStyle = "#ffc832";
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText("Q", centerX - (25 * scale), centerY + (15 * scale));
+
+            // Linha r' (raio vetor)
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(probePos.x, probePos.y);
+            ctx.strokeStyle = "#646464";
+            ctx.lineWidth = Math.max(1, 2 * scale);
+            ctx.stroke();
+
+            // Arco do ângulo θ'
+            let rDist = Math.hypot(px, pz);
+            let arcRadius = 40 * scale;
+            if (rDist > arcRadius) {
+                ctx.beginPath();
+                // O canvas desenha arcos no sentido horário (eixo Y para baixo)
+                // Então o ângulo final no canvas é negativo
+                ctx.arc(centerX, centerY, arcRadius, 0, -angleRad, angleRad > 0);
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = Math.max(1, 1.5 * scale);
+                ctx.stroke();
+
+                let offsetDist = 60 * scale;
+                let tx = centerX + offsetDist * Math.cos(angleRad / 2);
+                let ty = centerY - offsetDist * Math.sin(angleRad / 2);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = `italic ${20 * scale}px Arial`;
+                ctx.fillText("θ'", tx, ty);
+            }
+
+            // Posições finais dos vetores
+            let endExPos = { x: probePos.x + Ex, y: probePos.y };
+            let endEzPos = { x: probePos.x, y: probePos.y - Ez }; // -Ez pois y sobe subtraindo
+            let endTotalPos = { x: probePos.x + Ex, y: probePos.y - Ez };
+
+            // Linhas tracejadas
+            drawDashedLine(endExPos.x, endExPos.y, endTotalPos.x, endTotalPos.y, "#505050");
+            drawDashedLine(endEzPos.x, endEzPos.y, endTotalPos.x, endTotalPos.y, "#505050");
+
+            // Vetores E'x, E'z e E'
+            drawArrow(probePos.x, probePos.y, endExPos.x, endExPos.y, "#32c8ff", 3); // E'x
+            drawArrow(probePos.x, probePos.y, endEzPos.x, endEzPos.y, "#ff32c8", 3); // E'z
+            drawArrow(probePos.x, probePos.y, endTotalPos.x, endTotalPos.y, "#ffffff", 4); // E'
+
+            // Ponto P
+            ctx.beginPath();
+            ctx.arc(probePos.x, probePos.y, 10 * scale, 0, Math.PI * 2);
+            ctx.fillStyle = "#ffffff";
+            ctx.fill();
+
+            // Labels dos vetores
+            ctx.font = `bold ${22 * scale}px Arial`;
+            
+            ctx.fillStyle = "#32c8ff";
+            let exOffset = Ex > 0 ? 10 * scale : -40 * scale;
+            ctx.fillText("E'x", endExPos.x + exOffset, endExPos.y + 20 * scale);
+
+            ctx.fillStyle = "#ff32c8";
+            let ezOffset = Ez > 0 ? -30 * scale : 20 * scale;
+            ctx.fillText("E'z", endEzPos.x - 15 * scale, endEzPos.y + ezOffset);
+
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText("E'", endTotalPos.x + 10 * scale, endTotalPos.y - 15 * scale);
+
+            requestAnimationFrame(render);
+        }
+
+        render();
+    </script>
+</body>
+</html>
