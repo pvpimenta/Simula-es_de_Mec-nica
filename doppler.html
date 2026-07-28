@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Simulação Efeito Doppler</title>
+    <style>
+        :root {
+            --hud-bg: rgba(255, 255, 255, 0.85);
+            --text-main: #000;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #87CEEB;
+            font-family: 'Courier New', Courier, monospace;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .hud-panel, .hud-bottom {
+            position: absolute;
+            background: var(--hud-bg);
+            border: 2px solid #333;
+            padding: 15px;
+            border-radius: 8px;
+            pointer-events: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            font-weight: bold;
+            left: 15px;
+        }
+
+        .hud-panel { top: 15px; }
+        .hud-bottom { bottom: 15px; }
+
+        .stat-line { margin-bottom: 5px; font-size: 14px;}
+        .stat-freq { font-size: 18px; margin-top: 10px; margin-bottom: 10px; }
+        
+        .color-red { color: #d32f2f; }
+        .color-blue { color: #1976d2; }
+        .color-black { color: #000; }
+    </style>
+</head>
+<body>
+
+    <canvas id="simCanvas"></canvas>
+
+    <div class="hud-panel">
+        <div class="stat-line" id="txt-modo">MODO ATUAL: 2 (Toque p/ mudar)</div>
+        <div class="stat-line" style="font-size: 12px; font-weight: normal;">1: Ambulância se move, Obs. parado</div>
+        <div class="stat-line" style="font-size: 12px; font-weight: normal;">2: Ambulância parada, Obs. se move</div>
+    </div>
+
+    <div class="hud-bottom">
+        <div class="stat-line">Freq. Real: 440 Hz</div>
+        <div class="stat-freq color-black" id="txt-freq-percebida">Freq. Percebida: 440 Hz</div>
+        <div class="stat-line" id="txt-contador">ONDAS RECEBIDAS: 0</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const txtModo = document.getElementById('txt-modo');
+        const txtFreqPercebida = document.getElementById('txt-freq-percebida');
+        const txtContador = document.getElementById('txt-contador');
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = new AudioContext();
+
+        function playBeep() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+            
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        let width, height, posYEstrada;
+        let scale = 1;
+        
+        const V_SOM_REAL = 343;
+        const F_FONTE_REAL = 440;
+        const FATOR_ESCALA_VELOCIDADE = 10;
+        let V_SOM_VISUAL = 4;
+        let INTERVALO_ONDA = 25;
+        let VELOCIDADE_MOVIMENTO = 3;
+
+        let modoSimulacao = 2;
+        let ambulancia, observador;
+        let listaOndas = [];
+        let listaEfeitos = [];
+        let timerEmissaoOnda = 0;
+        let contadorOndas = 0;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            posYEstrada = height * 0.6; 
+            scale = Math.max(0.5, width / 1200); 
+            
+            V_SOM_VISUAL = 4 * scale;
+            VELOCIDADE_MOVIMENTO = 3 * scale;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Ambulancia {
+            constructor(x, y, velX) {
+                this.x = x;
+                this.y = y;
+                this.velX = velX;
+                this.largura = 70 * scale;
+                this.altura = 35 * scale;
+                this.corSirene = '#FF0000';
+                this.timerSirene = 0;
+            }
+
+            update() {
+                this.x += this.velX;
+                if (this.velX > 0 && this.x > width + this.largura) this.x = -this.largura;
+                else if (this.velX < 0 && this.x < -this.largura) this.x = width + this.largura;
+
+                this.timerSirene = (this.timerSirene + 1) % 40;
+                this.corSirene = this.timerSirene < 20 ? '#FF0000' : '#0000FF';
+            }
+
+            draw(ctx) {
+                ctx.save();
+                
+                // Sombra da ambulância
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+                ctx.shadowBlur = 10;
+                ctx.shadowOffsetY = 5;
+
+                // Corpo
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(this.x, this.y - this.altura, this.largura, this.altura);
+                
+                // Resetando sombra para não afetar rodas e sirene
+                ctx.shadowColor = 'transparent';
+
+                // Rodas
+                ctx.fillStyle = '#000000';
+                ctx.beginPath(); ctx.arc(this.x + 15 * scale, this.y, 8 * scale, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(this.x + 55 * scale, this.y, 8 * scale, 0, Math.PI*2); ctx.fill();
+                
+                // Sirene
+                ctx.fillStyle = this.corSirene;
+                ctx.fillRect(this.x + 30 * scale, this.y - this.altura - 10 * scale, 10 * scale, 10 * scale);
+                
+                ctx.restore();
+            }
+
+            getPosSirene() {
+                return { x: this.x + 35 * scale, y: this.y - this.altura - 5 * scale };
+            }
+        }
+
+        class Observador {
+            constructor(x, y, velX) {
+                this.x = x;
+                this.y = y;
+                this.velX = velX;
+            }
+
+            update() {
+                this.x += this.velX;
+                if (this.velX > 0 && this.x > width + 20) this.x = -20;
+                else if (this.velX < 0 && this.x < -20) this.x = width + 20;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+                ctx.shadowBlur = 5;
+                ctx.shadowOffsetY = 3;
+
+                // Cabeça
+                ctx.fillStyle = '#FFC8C8';
+                ctx.beginPath(); ctx.arc(this.x, this.y - 25 * scale, 8 * scale, 0, Math.PI*2); ctx.fill();
+                
+                // Corpo
+                ctx.fillStyle = '#0000FF';
+                ctx.fillRect(this.x - 6 * scale, this.y - 17 * scale, 12 * scale, 17 * scale);
+                
+                ctx.restore();
+            }
+
+            getPosOrelha() {
+                return { x: this.x, y: this.y - 25 * scale };
+            }
+        }
+
+        class Onda {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.raio = 0;
+                this.vel = V_SOM_VISUAL;
+                this.hitObserver = false;
+            }
+
+            update() {
+                this.raio += this.vel;
+            }
+
+            draw(ctx) {
+                if (this.raio > 2) {
+                    // Opacidade diminui conforme a onda cresce
+                    let opacidade = Math.max(0, 1 - (this.raio / (width * 0.8)));
+                    
+                    ctx.save();
+                    ctx.globalAlpha = opacidade;
+                    ctx.strokeStyle = '#00FFFF';
+                    ctx.lineWidth = 3; 
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.raio, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        }
+
+        class EfeitoMoeda {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.velY = -4 * scale;
+                this.gravidade = 0.2 * scale;
+                this.alpha = 1.0;
+            }
+
+            update() {
+                this.y += this.velY;
+                this.velY += this.gravidade;
+                this.alpha -= 0.05;
+                if (this.alpha < 0) this.alpha = 0;
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = `rgba(255, 223, 0, ${this.alpha})`;
+                ctx.beginPath(); ctx.arc(this.x, this.y, 8 * scale, 0, Math.PI*2); ctx.fill();
+                
+                ctx.fillStyle = `rgba(0, 0, 0, ${this.alpha})`;
+                ctx.font = `bold ${12 * scale}px Arial`;
+                ctx.fillText("+1", this.x + 10 * scale, this.y);
+            }
+        }
+
+        function setupModo(modo) {
+            listaOndas = [];
+            listaEfeitos = [];
+            contadorOndas = 0;
+            
+            if (modo === 1) {
+                ambulancia = new Ambulancia(-50, posYEstrada, VELOCIDADE_MOVIMENTO);
+                observador = new Observador(width / 2, posYEstrada, 0);
+            } else {
+                ambulancia = new Ambulancia(width / 2, posYEstrada, 0);
+                observador = new Observador(-50, posYEstrada, VELOCIDADE_MOVIMENTO);
+            }
+            txtModo.innerText = `MODO ATUAL: ${modo} (Toque p/ mudar)`;
+        }
+
+        function calcularFrequencia(fonte, obs) {
+            let v_s_real = (fonte.velX / scale) * FATOR_ESCALA_VELOCIDADE;
+            let v_o_real = (obs.velX / scale) * FATOR_ESCALA_VELOCIDADE;
+            
+            let num = V_SOM_REAL;
+            let den = V_SOM_REAL;
+
+            if (obs.x < fonte.x && v_o_real > 0) num += v_o_real;
+            else if (obs.x > fonte.x && v_o_real < 0) num += Math.abs(v_o_real);
+            else if (obs.x < fonte.x && v_o_real < 0) num -= Math.abs(v_o_real);
+            else if (obs.x > fonte.x && v_o_real > 0) num -= v_o_real;
+
+            if (fonte.x < obs.x && v_s_real > 0) den -= v_s_real;
+            else if (fonte.x > obs.x && v_s_real < 0) den -= Math.abs(v_s_real);
+            else if (fonte.x < obs.x && v_s_real < 0) den += Math.abs(v_s_real);
+            else if (fonte.x > obs.x && v_s_real > 0) den += v_s_real;
+
+            if (den <= 0) return Infinity;
+            return F_FONTE_REAL * (num / den);
+        }
+
+        canvas.addEventListener('pointerdown', () => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            modoSimulacao = modoSimulacao === 1 ? 2 : 1;
+            setupModo(modoSimulacao);
+        });
+
+        setupModo(modoSimulacao);
+
+        function loop() {
+            ambulancia.update();
+            observador.update();
+
+            timerEmissaoOnda++;
+            if (timerEmissaoOnda >= INTERVALO_ONDA) {
+                timerEmissaoOnda = 0;
+                let pos = ambulancia.getPosSirene();
+                listaOndas.push(new Onda(pos.x, pos.y));
+            }
+
+            let posOrelha = observador.getPosOrelha();
+
+            for (let onda of listaOndas) {
+                onda.update();
+                if (!onda.hitObserver) {
+                    let dist = Math.hypot(onda.x - posOrelha.x, onda.y - posOrelha.y);
+                    if (onda.raio >= dist && (onda.raio - onda.vel) < dist) {
+                        onda.hitObserver = true;
+                        contadorOndas++;
+                        playBeep();
+                        listaEfeitos.push(new EfeitoMoeda(posOrelha.x, posOrelha.y));
+                    }
+                }
+            }
+
+            for (let efeito of listaEfeitos) efeito.update();
+
+            listaOndas = listaOndas.filter(o => o.raio < Math.max(width, height) * 1.5);
+            listaEfeitos = listaEfeitos.filter(e => e.alpha > 0);
+
+            let freqAtual = calcularFrequencia(ambulancia, observador);
+            
+            txtFreqPercebida.innerText = `Freq. Percebida: ${Math.round(freqAtual)} Hz`;
+            txtFreqPercebida.className = 'stat-freq';
+            if (freqAtual > F_FONTE_REAL + 2) txtFreqPercebida.classList.add('color-blue');
+            else if (freqAtual < F_FONTE_REAL - 2) txtFreqPercebida.classList.add('color-red');
+            else txtFreqPercebida.classList.add('color-black');
+            
+            txtContador.innerText = `ONDAS RECEBIDAS: ${contadorOndas}`;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Céu com Gradiente
+            let ceuGradient = ctx.createLinearGradient(0, 0, 0, posYEstrada);
+            ceuGradient.addColorStop(0, "#4a90e2"); 
+            ceuGradient.addColorStop(1, "#87CEEB"); 
+            ctx.fillStyle = ceuGradient;
+            ctx.fillRect(0, 0, width, posYEstrada);
+
+            // Estrada com Gradiente
+            let estradaGradient = ctx.createLinearGradient(0, posYEstrada, 0, height);
+            estradaGradient.addColorStop(0, "#404040"); 
+            estradaGradient.addColorStop(1, "#202020");
+            ctx.fillStyle = estradaGradient;
+            ctx.fillRect(0, posYEstrada - 10, width, height - posYEstrada + 10);
+
+            // Grama
+            ctx.fillStyle = "#4caf50";
+            ctx.fillRect(0, posYEstrada - 15, width, 5);
+
+            for (let onda of listaOndas) onda.draw(ctx);
+            ambulancia.draw(ctx);
+            observador.draw(ctx);
+            for (let efeito of listaEfeitos) efeito.draw(ctx);
+
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
