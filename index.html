@@ -67,8 +67,7 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
         }
 
-        /* Efeito hover desativado para cards embutidos com classe .embedded */
-        .sim-card:not(.embedded)::before {
+        .sim-card::before {
             content: "";
             position: absolute;
             top: 0;
@@ -81,13 +80,13 @@
             transition: transform 0.3s ease;
         }
 
-        .sim-card:not(.embedded):hover {
+        .sim-card:hover {
             transform: translateY(-8px);
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
             border-color: rgba(56, 189, 248, 0.3);
         }
 
-        .sim-card:not(.embedded):hover::before {
+        .sim-card:hover::before {
             transform: scaleX(1);
         }
 
@@ -98,7 +97,7 @@
             transition: transform 0.3s ease;
         }
 
-        .sim-card:not(.embedded):hover .icon-wrapper {
+        .sim-card:hover .icon-wrapper {
             transform: scale(1.15) rotate(5deg);
         }
 
@@ -179,16 +178,12 @@
             <div class="sim-desc">Simulação otimizada para mobile que visualiza a decomposição dos vetores e ângulos gerados por uma carga pontual no espaço.</div>
         </a>
 
-        <!-- Simulação 8: Efeito Doppler (Embutida no Painel) -->
-        <div class="sim-card embedded" style="grid-column: 1 / -1; padding: 0; overflow: hidden; display: flex; flex-direction: column;">
-            <div style="padding: 20px; background: var(--card-bg); border-bottom: 1px solid rgba(255,255,255,0.1);">
-                <div class="icon-wrapper" style="margin-bottom: 10px; font-size: 2.5rem; transform: none;">🚑</div>
-                <div class="sim-title">Efeito Doppler Interativo</div>
-                <div class="sim-desc">Toque ou clique na tela abaixo para alternar os referenciais (em movimento ou parado) e observe as frentes de onda.</div>
-            </div>
-            
-            <iframe src="doppler.html" width="100%" height="450px" frameborder="0" style="display: block; pointer-events: auto;"></iframe>
-        </div>
+        <!-- Simulação 8: Efeito Doppler -->
+        <a href="doppler.html" class="sim-card">
+            <div class="icon-wrapper">🚑</div>
+            <div class="sim-title">Efeito Doppler</div>
+            <div class="sim-desc">Entenda visual e acusticamente como o movimento relativo altera a frequência das ondas e gera compressão sonora.</div>
+        </a>
 
     </div>
 
